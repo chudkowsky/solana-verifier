@@ -50,7 +50,9 @@ async fn main() -> client::Result<()> {
         client.get_latest_blockhash().await?,
     );
 
-    let signature = client.send_and_confirm_transaction(&create_account_tx).await?;
+    let signature = client
+        .send_and_confirm_transaction(&create_account_tx)
+        .await?;
     println!("Account created successfully: {}", signature);
 
     let mut stack_init_input: [u64; 2] = [0, 65536];

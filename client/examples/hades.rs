@@ -56,7 +56,9 @@ async fn main() -> client::Result<()> {
         client.get_latest_blockhash().await?,
     );
 
-    let signature = client.send_and_confirm_transaction(&create_account_tx).await?;
+    let signature = client
+        .send_and_confirm_transaction(&create_account_tx)
+        .await?;
     println!("Account created successfully: {}", signature);
 
     // Initialize the account
@@ -160,7 +162,7 @@ async fn main() -> client::Result<()> {
         .get_account_data(&stack_account.pubkey())
         .await
         .map_err(ClientError::SolanaClientError)?;
-    
+
     let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
     let result_bytes = stack.borrow_front();
     let result = Felt::from_bytes_be(&result_bytes.try_into().unwrap());

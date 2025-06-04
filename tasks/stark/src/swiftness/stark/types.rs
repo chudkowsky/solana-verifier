@@ -5,12 +5,13 @@ use crate::swiftness::air::public_memory::PublicInput;
 use crate::swiftness::air::trace;
 use crate::swiftness::commitment::table;
 use crate::swiftness::{fri, pow::pow};
-pub fn cast_slice_to_struct<T>(slice: &[u8]) -> &mut T
+
+pub fn cast_slice_to_struct<T>(slice: &[u8]) -> &T
 where
     T: Sized,
 {
     assert_eq!(slice.len(), std::mem::size_of::<T>());
-    unsafe { &mut *(slice.as_ptr() as *mut T) }
+    unsafe { &*(slice.as_ptr() as *const T) }
 }
 pub fn cast_struct_to_slice<T>(s: &mut T) -> &mut [u8]
 where

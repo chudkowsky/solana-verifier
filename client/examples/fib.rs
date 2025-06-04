@@ -56,7 +56,9 @@ async fn main() -> client::Result<()> {
         client.get_latest_blockhash().await?,
     );
 
-    let signature = client.send_and_confirm_transaction(&create_account_tx).await?;
+    let signature = client
+        .send_and_confirm_transaction(&create_account_tx)
+        .await?;
     println!("Account created successfully: {}", signature);
 
     // Initialize the account

@@ -62,7 +62,9 @@ async fn main() -> client::Result<()> {
         client.get_latest_blockhash().await?,
     );
 
-    let signature = client.send_and_confirm_transaction(&create_account_tx).await?;
+    let signature = client
+        .send_and_confirm_transaction(&create_account_tx)
+        .await?;
 
     let mut input: [u64; 2] = [0, 65536];
     let proof_bytes = cast_struct_to_slice(&mut input);
@@ -144,8 +146,9 @@ async fn main() -> client::Result<()> {
         &[&payer],
         client.get_latest_blockhash().await?,
     );
-    let verify_public_input_signature: solana_sdk::signature::Signature =
-        client.send_and_confirm_transaction(&verify_public_input_tx).await?;
+    let verify_public_input_signature: solana_sdk::signature::Signature = client
+        .send_and_confirm_transaction(&verify_public_input_tx)
+        .await?;
     println!("Verify public input: {:?}", verify_public_input_signature);
 
     let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);

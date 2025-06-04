@@ -38,7 +38,8 @@ async fn main() -> client::Result<()> {
         &config,
         space,
         "greeting-account",
-    ).await?;
+    )
+    .await?;
 
     let instructions = vec![Instruction::new_with_borsh(
         program_id,
@@ -53,7 +54,8 @@ async fn main() -> client::Result<()> {
         &program_id,
         &greeting_account,
         &instructions,
-    ).await?;
+    )
+    .await?;
 
     println!("Greeting program interaction completed successfully!");
     let mut account_data = client

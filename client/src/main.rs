@@ -1,19 +1,16 @@
 use std::{path::Path, time::Duration};
 
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{initialize_client, setup_program, ClientError, Config};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    signature::{keypair_from_seed, Keypair},
+    signature::Keypair,
     signer::Signer,
     system_instruction,
     transaction::Transaction,
 };
 use stark::{
-    felt::Felt,
-    stark_proof::VerifyPublicInput,
-    swiftness::stark::types::{cast_struct_to_slice, StarkProof},
+    felt::Felt, stark_proof::VerifyPublicInput, swiftness::stark::types::cast_struct_to_slice,
 };
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
 use utils::AccountCast;

@@ -12,6 +12,12 @@ impl Increment {
     }
 }
 
+impl Default for Increment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Executable for Increment {
     fn execute<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         let result = stack.borrow_front();
