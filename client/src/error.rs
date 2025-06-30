@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Custom error types for the Solana client application
 #[derive(Error, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum ClientError {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),

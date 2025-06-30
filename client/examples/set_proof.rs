@@ -3,9 +3,9 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction::create_account;
 use stark::swiftness::stark::types::{cast_struct_to_slice, StarkProof};
 use std::path::Path;
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
@@ -22,6 +22,7 @@ pub struct Input {
 }
 
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     let config = Config::parse_args();
     let client = initialize_client(&config).await?;
@@ -32,16 +33,16 @@ async fn main() -> client::Result<()> {
 
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
 
     let stack_account = Keypair::new();
 
     println!("Creating new account: {}", stack_account.pubkey());
 
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -59,7 +60,7 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
     println!("\nSet Proof on Solana");
     println!("====================");
     let input = include_str!("../../example_proof/saya.json");
@@ -96,7 +97,7 @@ async fn main() -> client::Result<()> {
         );
         let set_proof_signature: solana_sdk::signature::Signature =
             client.send_transaction(&set_proof_tx).await?;
-        println!("Set proof: {}: {}", i, set_proof_signature);
+        println!("Set proof: {i}: {set_proof_signature}");
     }
 
     let account_data_after_set_proof = client

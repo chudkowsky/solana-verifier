@@ -28,7 +28,7 @@ pub fn print_address<T>(address: &T, label: u64) {
 pub fn cast_felt(felt: &Felt) -> u64 {
     let digits = felt.to_be_digits();
     if digits[0] != 0 || digits[1] != 0 || digits[2] != 0 {
-        panic!("Casting Felt({:?}) to u64 failed", digits);
+        panic!("Casting Felt({digits:?}) to u64 failed");
     }
 
     digits[3]

@@ -2,9 +2,9 @@ use client::{initialize_client, setup_payer, setup_program, ClientError, Config}
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction::create_account;
 use stark::poseidon::PoseidonHashMany;
 use stark::{felt::Felt, swiftness::stark::types::cast_struct_to_slice};
 use std::{mem::size_of, path::Path};
@@ -13,6 +13,7 @@ use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccoun
 
 /// Main entry point for the Solana program client
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     // Parse command-line arguments
     let config = Config::parse_args();
@@ -29,7 +30,7 @@ async fn main() -> client::Result<()> {
     // Deploy or use existing program
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
 
     // Create a new account that's owned by our program
     let stack_account = Keypair::new();
@@ -37,10 +38,10 @@ async fn main() -> client::Result<()> {
 
     // Calculate the space needed for our account
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
     // Create account instruction
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -59,7 +60,7 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
     // Cast to stack account to see if initialized correctly
 
     let mut stack_init_input: [u64; 2] = [0, 65536];
@@ -79,7 +80,7 @@ async fn main() -> client::Result<()> {
         client.get_latest_blockhash().await?,
     );
     let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {}", init_signature);
+    println!("Account initialized: {init_signature}");
 
     let account_data_after_init = client
         .get_account_data(&stack_account.pubkey())
@@ -115,9 +116,9 @@ async fn main() -> client::Result<()> {
     // 1. Pad inputs with 1 followed by 0's if necessary to make even length
     let mut padded_inputs = inputs.clone();
     padded_inputs.push(Felt::ONE);
-    padded_inputs.resize((padded_inputs.len() + 1) / 2 * 2, Felt::ZERO);
-
-    println!("Padded input length: {}", padded_inputs.len());
+    let len = padded_inputs.len().div_ceil(2) * 2;
+    padded_inputs.resize(len, Felt::ZERO);
+    println!("Padded input length: {len}");
 
     // 2. Push values in reverse order
     for input in padded_inputs.iter().rev() {
@@ -135,7 +136,7 @@ async fn main() -> client::Result<()> {
         );
 
         let _push_data_sig = client.send_and_confirm_transaction(&push_data_tx).await?;
-        println!("Pushed input value: {}", input);
+        println!("Pushed input value: {input}");
     }
 
     // 3. Push three zeros
@@ -174,7 +175,7 @@ async fn main() -> client::Result<()> {
     );
 
     let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nPoseidon hash task pushed: {}", push_signature);
+    println!("\nPoseidon hash task pushed: {push_signature}");
 
     // Execute until task is complete
     let mut steps = 0;
@@ -182,7 +183,7 @@ async fn main() -> client::Result<()> {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute,
+            &VerifierInstruction::Execute(steps as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -204,7 +205,7 @@ async fn main() -> client::Result<()> {
             .map_err(ClientError::SolanaClientError)?;
         let stack = BidirectionalStackAccount::cast(&account_data);
         if stack.is_empty_back() {
-            println!("\nExecution complete after {} steps", steps);
+            println!("\nExecution complete after {steps} steps");
             break;
         }
     }
@@ -220,7 +221,7 @@ async fn main() -> client::Result<()> {
     stack.pop_front();
     stack.pop_front();
     stack.pop_front();
-    println!("\nPoseidon hash result: {}", result);
+    println!("\nPoseidon hash result: {result}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
 

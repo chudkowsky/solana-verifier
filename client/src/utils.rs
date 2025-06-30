@@ -40,8 +40,7 @@ pub async fn initialize_client(config: &Config) -> Result<RpcClient> {
         })
         .map_err(|err| {
             ClientError::ConnectionError(format!(
-                "{}.\nPlease ensure a local validator is running with 'solana-test-validator'",
-                err
+                "{err}.\nPlease ensure a local validator is running with 'solana-test-validator'"
             ))
         })
 }
@@ -101,7 +100,7 @@ pub async fn request_and_confirm_airdrop(
     } else {
         "Additional airdrop"
     };
-    println!("{} requested, waiting for confirmation...", message);
+    println!("{message} requested, waiting for confirmation...");
 
     let sig = client
         .request_airdrop(&keypair.pubkey(), amount)
@@ -117,7 +116,7 @@ pub async fn request_and_confirm_airdrop(
 
     confirm_transaction_with_retries(client, &sig, config.transaction_retry_count, config).await?;
 
-    println!("{} confirmed!", message);
+    println!("{message} confirmed!");
     Ok(())
 }
 
@@ -136,29 +135,23 @@ pub async fn confirm_transaction_with_retries(
             }
             Ok(false) => {
                 return Err(ClientError::TransactionError(format!(
-                    "Transaction not confirmed after {} attempts",
-                    retries
+                    "Transaction not confirmed after {retries} attempts"
                 )));
             }
             Err(err) if attempt < retries => {
-                println!(
-                    "Confirmation attempt {}/{} failed: {}",
-                    attempt, retries, err
-                );
+                println!("Confirmation attempt {attempt}/{retries} failed: {err}");
                 sleep(config.retry_sleep_duration());
             }
             Err(err) => {
                 return Err(ClientError::TransactionError(format!(
-                    "Failed to confirm transaction: {}",
-                    err
+                    "Failed to confirm transaction: {err}"
                 )));
             }
         }
     }
 
     Err(ClientError::TransactionError(format!(
-        "Transaction confirmation failed after {} attempts",
-        retries
+        "Transaction confirmation failed after {retries} attempts"
     )))
 }
 
@@ -189,7 +182,7 @@ pub async fn setup_program(
 
     let program_keypair_path = config
         .keypairs_dir
-        .join(format!("{}-keypair.json", program_name));
+        .join(format!("{program_name}-keypair.json"));
 
     // Deploy the program or use existing deployment
     if program_keypair_path.exists() {
@@ -199,11 +192,11 @@ pub async fn setup_program(
         // Check if the program is already deployed
         match client.get_account(&program_id).await {
             Ok(_) => {
-                println!("Program already deployed at ID: {}", program_id);
+                println!("Program already deployed at ID: {program_id}");
                 Ok(program_id)
             }
             Err(_) => {
-                println!("Deploying program with ID: {}", program_id);
+                println!("Deploying program with ID: {program_id}");
                 deploy_program(client, payer, &program_keypair, &program_data, config).await?;
                 println!("Program deployed successfully!");
                 Ok(program_id)
@@ -213,7 +206,7 @@ pub async fn setup_program(
         // Create a new program deployment
         let program_keypair = Keypair::new();
         let program_id = program_keypair.pubkey();
-        println!("Deploying new program with ID: {}", program_id);
+        println!("Deploying new program with ID: {program_id}");
 
         deploy_program(client, payer, &program_keypair, &program_data, config).await?;
 
@@ -240,7 +233,7 @@ pub async fn setup_account(
 ) -> Result<Keypair> {
     let account_keypair_path = config
         .keypairs_dir
-        .join(format!("{}-keypair.json", account_name));
+        .join(format!("{account_name}-keypair.json"));
 
     if account_keypair_path.exists() {
         let account_keypair = read_keypair_file(&account_keypair_path)?;
@@ -283,11 +276,10 @@ pub async fn setup_account(
             .await
             .map_err(|e| {
                 ClientError::TransactionError(format!(
-                    "Failed to send and confirm account creation transaction: {}",
-                    e
+                    "Failed to send and confirm account creation transaction: {e}"
                 ))
             })?;
-        println!("Created account: {}", create_sig);
+        println!("Created account: {create_sig}");
 
         // Ensure keypairs directory exists
         if !config.keypairs_dir.exists() {
@@ -331,9 +323,9 @@ pub async fn send_instruction(
         .send_and_confirm_transaction(&transaction)
         .await
         .map_err(|e| {
-            ClientError::TransactionError(format!("Failed to send and confirm transaction: {}", e))
+            ClientError::TransactionError(format!("Failed to send and confirm transaction: {e}"))
         })?;
-    println!("Transaction signature: {}", signature);
+    println!("Transaction signature: {signature}");
 
     Ok(signature)
 }
@@ -377,9 +369,9 @@ pub async fn interact_with_program_instructions(
         .send_and_confirm_transaction(&transaction)
         .await
         .map_err(|e| {
-            ClientError::TransactionError(format!("Failed to send and confirm transaction: {}", e))
+            ClientError::TransactionError(format!("Failed to send and confirm transaction: {e}"))
         })?;
-    println!("Transaction signature: {}", signature);
+    println!("Transaction signature: {signature}");
 
     Ok(())
 }
@@ -396,7 +388,7 @@ pub async fn deploy_program(
 
     // Calculate the buffer size needed
     let program_len = program_data.len();
-    println!("Program size: {} bytes", program_len);
+    println!("Program size: {program_len} bytes");
 
     // Create a buffer account
     let buffer_keypair = Keypair::new();
@@ -439,9 +431,9 @@ pub async fn deploy_program(
         .send_and_confirm_transaction(&create_buffer_tx)
         .await
         .map_err(|e| {
-            ClientError::TransactionError(format!("Failed to create buffer account: {}", e))
+            ClientError::TransactionError(format!("Failed to create buffer account: {e}"))
         })?;
-    println!("Buffer account created: {}", signature);
+    println!("Buffer account created: {signature}");
 
     // Write program data to the buffer account in chunks
     write_program_to_buffer(client, payer, &buffer_keypair, program_data, config).await?;
@@ -483,8 +475,8 @@ pub async fn deploy_program(
     let signature = client
         .send_and_confirm_transaction(&deploy_tx)
         .await
-        .map_err(|e| ClientError::TransactionError(format!("Failed to deploy program: {}", e)))?;
-    println!("Program deployed: {}", signature);
+        .map_err(|e| ClientError::TransactionError(format!("Failed to deploy program: {e}")))?;
+    println!("Program deployed: {signature}");
 
     Ok(())
 }
@@ -525,10 +517,7 @@ pub async fn write_program_to_buffer(
 
         // Send transaction without waiting for confirmation
         client.send_transaction(&write_tx).await.map_err(|e| {
-            ClientError::TransactionError(format!(
-                "Failed to send chunk at offset {}: {}",
-                offset, e
-            ))
+            ClientError::TransactionError(format!("Failed to send chunk at offset {offset}: {e}"))
         })?;
 
         offset = chunk_end;
@@ -563,7 +552,7 @@ pub async fn write_program_to_buffer(
             }
             Err(e) => {
                 retry_count += 1;
-                println!("Buffer data verification error: {}", e);
+                println!("Buffer data verification error: {e}");
             }
         }
     }
@@ -616,17 +605,18 @@ async fn verify_buffer_data(
 }
 
 /// Read a keypair from file with improved error handling
+#[allow(clippy::result_large_err)]
 pub fn read_keypair_file<P: AsRef<Path>>(path: P) -> Result<Keypair> {
     let file_content = fs::read_to_string(&path).map_err(ClientError::IoError)?;
 
     let bytes: Vec<u8> = serde_json::from_str(&file_content).map_err(ClientError::SerdeError)?;
 
-    Keypair::from_bytes(&bytes).map_err(|e| {
-        ClientError::KeypairError(format!("Failed to create keypair from bytes: {}", e))
-    })
+    Keypair::from_bytes(&bytes)
+        .map_err(|e| ClientError::KeypairError(format!("Failed to create keypair from bytes: {e}")))
 }
 
 /// Write a keypair to file with improved error handling
+#[allow(clippy::result_large_err)]
 pub fn write_keypair_file<P: AsRef<Path>>(keypair: &Keypair, path: P) -> Result<()> {
     let json =
         serde_json::to_string(&keypair.to_bytes().to_vec()).map_err(ClientError::SerdeError)?;

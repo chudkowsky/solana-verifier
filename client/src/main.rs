@@ -6,7 +6,6 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::Transaction,
 };
 use stark::{
@@ -21,6 +20,7 @@ use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccoun
 pub const CHUNK_SIZE: usize = 1000;
 
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     let config = Config::parse_args();
     let client = initialize_client(&config).await?;
@@ -30,15 +30,15 @@ async fn main() -> client::Result<()> {
     let program_path = Path::new("target/deploy/verifier.so");
 
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
     let stack_account = Keypair::new();
 
     println!("Creating new account: {}", stack_account.pubkey());
 
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = solana_system_interface::instruction::create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -56,7 +56,7 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
 
     let mut input: [u64; 2] = [0, 65536];
     let proof_bytes = cast_struct_to_slice(&mut input);
@@ -85,10 +85,10 @@ async fn main() -> client::Result<()> {
         );
         let set_proof_signature: solana_sdk::signature::Signature =
             client.send_and_confirm_transaction(&set_proof_tx).await?;
-        println!("Set proof: {}: {}", i, set_proof_signature);
+        println!("Set proof: {i}: {set_proof_signature}");
     }
 
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
     println!("\nSet Proof on Solana");
     println!("====================");
     let input = include_str!("../../example_proof/saya.json");
@@ -121,7 +121,7 @@ async fn main() -> client::Result<()> {
         );
         let set_proof_signature: solana_sdk::signature::Signature =
             client.send_transaction(&set_proof_tx).await?;
-        println!("Set proof: {}: {}", i, set_proof_signature);
+        println!("Set proof: {i}: {set_proof_signature}");
     }
 
     let task = VerifyPublicInput::new();
@@ -141,7 +141,7 @@ async fn main() -> client::Result<()> {
     let verify_public_input_signature: solana_sdk::signature::Signature = client
         .send_and_confirm_transaction(&verify_public_input_tx)
         .await?;
-    println!("Verify public input: {:?}", verify_public_input_signature);
+    println!("Verify public input: {verify_public_input_signature:?}");
 
     let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);
 
@@ -150,7 +150,7 @@ async fn main() -> client::Result<()> {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute,
+            &VerifierInstruction::Execute(steps as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -167,8 +167,8 @@ async fn main() -> client::Result<()> {
                 println!("Verification TX: {:?}", execute_signature.unwrap());
                 break;
             }
-            println!("Retrying... {}", retries);
-            println!("Error: {:?}", execute_signature);
+            println!("Retrying... {retries}");
+            println!("Error: {execute_signature:?}");
             tokio::time::sleep(Duration::from_millis(100)).await;
             retries += 1;
             if retries > 10 {
@@ -177,7 +177,7 @@ async fn main() -> client::Result<()> {
         }
 
         steps += 1;
-        println!("step: {}", steps);
+        println!("step: {steps}");
         // Check stack state
         let account_data = client
             .get_account_data(&stack_account.pubkey())
@@ -185,7 +185,7 @@ async fn main() -> client::Result<()> {
             .map_err(ClientError::SolanaClientError)?;
         let stack = BidirectionalStackAccount::cast(&account_data);
         if stack.is_empty_back() {
-            println!("\nExecution complete after {} steps", steps);
+            println!("\nExecution complete after {steps} steps");
             break;
         }
     }
@@ -200,8 +200,8 @@ async fn main() -> client::Result<()> {
     stack.pop_front();
     let result_output_hash = Felt::from_bytes_be_slice(stack.borrow_front());
     stack.pop_front();
-    println!("\nProgram Hash: {:?}", result_program_hash);
-    println!("Output Hash: {:?}", result_output_hash);
+    println!("\nProgram Hash: {result_program_hash:?}");
+    println!("Output Hash: {result_output_hash:?}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
 
