@@ -61,6 +61,7 @@ fn main() {
     dispatch_code.push_str("    // Get the data from the back of the stack using unsafe\n");
     dispatch_code.push_str("    let data = unsafe { (*stack_ptr).borrow_mut_back() };\n");
     dispatch_code.push_str("    let mut tasks = Vec::new();\n");
+    dispatch_code.push_str("    #[allow(unused_assignments)]\n");
     dispatch_code.push_str("    let mut is_finished = false;\n");
 
     // We need to ensure we have enough data (at least 4 bytes for u32)
