@@ -22,5 +22,5 @@ pub enum VerifierInstruction {
     ///
     /// Accounts expected:
     /// 0. `[writable]` The verifier account
-    Execute,
+    Execute(u32),
 }

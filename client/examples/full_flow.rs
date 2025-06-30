@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
 use solana_sdk::{
@@ -158,7 +158,7 @@ async fn main() -> client::Result<()> {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute,
+            &VerifierInstruction::Execute(steps as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -168,7 +168,8 @@ async fn main() -> client::Result<()> {
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-        let execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
+        let execute_signature = client.send_transaction(&execute_tx).await?;
+        tokio::time::sleep(Duration::from_millis(25)).await;
         println!("Execute: {:?}", execute_signature);
         steps += 1;
         println!("steps: {}", steps);
@@ -183,6 +184,7 @@ async fn main() -> client::Result<()> {
             break;
         }
     }
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Read and display the result
     let mut account_data = client

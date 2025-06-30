@@ -78,8 +78,8 @@ impl Processor {
     }
 
     /// Process the execute instruction
-    pub fn process_execute(accounts: &[AccountInfo]) -> ProgramResult {
-        msg!("Processing Execute instruction");
+    pub fn process_execute(accounts: &[AccountInfo], nonce: u32) -> ProgramResult {
+        msg!("Processing Execute instruction, nonce: {}", nonce);
 
         // Get the account to execute task from
         let accounts_iter = &mut accounts.iter();
@@ -135,6 +135,6 @@ pub fn process_instruction(
         VerifierInstruction::PushData(data_payload) => {
             Processor::process_push_data(accounts, data_payload)
         }
-        VerifierInstruction::Execute => Processor::process_execute(accounts),
+        VerifierInstruction::Execute(nonce) => Processor::process_execute(accounts, nonce),
     }
 }
