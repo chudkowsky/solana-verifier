@@ -159,7 +159,10 @@ impl Executable for VerifyPublicInput {
                     .try_into()
                     .unwrap();
 
-                assert!(initial_fp < MAX_ADDRESS, "Initial AP exceeds maximum address");
+                assert!(
+                    initial_fp < MAX_ADDRESS,
+                    "Initial AP exceeds maximum address"
+                );
                 assert!(final_ap < MAX_ADDRESS, "Final AP exceeds maximum address");
                 assert!(
                     proof.public_input.continuous_page_headers.is_empty(),
