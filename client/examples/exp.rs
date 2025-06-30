@@ -127,6 +127,7 @@ async fn main() -> client::Result<()> {
     println!("Stack front index: {}", stack_after_push.front_index);
     println!("Stack back index: {}", stack_after_push.back_index);
 
+    let mut steps = 0;
     loop {
         println!(
             "Executing task, is empty: {}",
@@ -135,7 +136,7 @@ async fn main() -> client::Result<()> {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute,
+            &VerifierInstruction::Execute(steps as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -161,6 +162,7 @@ async fn main() -> client::Result<()> {
         if stack.is_empty_back() {
             break;
         }
+        steps += 1;
     }
 
     // Read and display the result

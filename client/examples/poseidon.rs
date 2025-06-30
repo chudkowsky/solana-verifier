@@ -182,7 +182,7 @@ async fn main() -> client::Result<()> {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute,
+            &VerifierInstruction::Execute(steps as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
