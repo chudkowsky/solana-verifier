@@ -15,10 +15,10 @@ pub struct PoseidonHashMany {
 impl_type_identifiable!(PoseidonHashMany);
 
 impl PoseidonHashMany {
-    pub fn new(inputs: &[Felt]) -> Self {
+    pub fn new(inputs_len: usize) -> Self {
         Self {
             state: [Felt::ZERO; 3],
-            input_length: (inputs.len() + 1).div_ceil(2) * 2,
+            input_length: (inputs_len + 1).div_ceil(2) * 2,
             counter: 0,
         }
     }

@@ -3,11 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 /// Instructions supported by the verifier program
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum VerifierInstruction {
-    /// Initializes the verifier account with default values
-    ///
-    /// Accounts expected:
-    /// 0. `[writable]` The verifier account
-    Initialize,
+    /// Sets the data at the given offset in the verifier account
+    SetAccountData(usize, Vec<u8>),
 
     /// Pushes a task to the verifier account's bidirectional stack
     ///

@@ -13,10 +13,13 @@ solana-program.workspace = true
 solana-sdk = "2.2.1"
 thiserror.workspace = true
 starknet-types-core = { version = "0.1.8", features = ["hash"] }
-
+swiftness_proof_parser = { path = "../parser" }
 greeting.workspace = true
 verifier.workspace = true
 utils.workspace = true
-
+solana-rpc-client = "2.2.1"
+solana-rpc-client-api = "2.2.1"
 arithmetic.workspace = true
 stark.workspace = true
+tokio = "1.44.2"
+futures = "0.3.31"

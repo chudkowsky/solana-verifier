@@ -11,21 +11,22 @@ use std::{mem::size_of, path::Path};
 use utils::AccountCast;
 
 /// Main entry point for the Solana program client
-fn main() -> client::Result<()> {
+#[tokio::main]
+async fn main() -> client::Result<()> {
     // Parse command-line arguments
     let config = Config::parse_args();
 
     // Initialize the Solana client
-    let client = initialize_client(&config)?;
+    let client = initialize_client(&config).await?;
 
     // Setup the payer account
-    let payer = setup_payer(&client, &config)?;
+    let payer = setup_payer(&client, &config).await?;
 
     // Define program path
     let program_path = Path::new("target/deploy/greeting.so");
 
     // Deploy or use existing program
-    let program_id = setup_program(&client, &payer, &config, program_path)?;
+    let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
     // Setup greeting account
     let space = size_of::<GreetingAccount>();
@@ -37,7 +38,8 @@ fn main() -> client::Result<()> {
         &config,
         space,
         "greeting-account",
-    )?;
+    )
+    .await?;
 
     let instructions = vec![Instruction::new_with_borsh(
         program_id,
@@ -52,11 +54,13 @@ fn main() -> client::Result<()> {
         &program_id,
         &greeting_account,
         &instructions,
-    )?;
+    )
+    .await?;
 
     println!("Greeting program interaction completed successfully!");
     let mut account_data = client
         .get_account_data(&greeting_account.pubkey())
+        .await
         .map_err(ClientError::SolanaClientError)?;
     let greeting_account = GreetingAccount::cast_mut(&mut account_data);
     println!("Greeting counter: {}", greeting_account.counter);

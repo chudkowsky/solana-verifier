@@ -57,3 +57,19 @@ fn test_fibonacci_operation() {
     assert_eq!(result, 4181);
     stack.pop_front();
 }
+
+#[test]
+fn test_increment_operation() {
+    let mut stack = BidirectionalStackAccount::default();
+    stack.push_data(&1u128.to_be_bytes());
+    for i in 0..9 {
+        stack.push_task(increment::Increment::new());
+    }
+    while !stack.is_empty_back() {
+        stack.execute();
+    }
+
+    let result = u128::from_be_bytes(stack.borrow_front().try_into().unwrap());
+    assert_eq!(result, 10);
+    stack.pop_front();
+}

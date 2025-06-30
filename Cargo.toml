@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["client", "programs/*", "tasks/*"]
+members = ["client", "programs/*", "tasks/*", "parser"]
 
 [workspace.package]
 version = "0.1.0"
@@ -19,3 +19,4 @@ utils = { path = "./programs/utils" }
 
 arithmetic = { path = "./tasks/arithmetic" }
 stark = { path = "./tasks/stark" }
+

@@ -1,15 +1,22 @@
 use lambdaworks_math::{field::element::FieldElement, unsigned_integer::element::UnsignedInteger};
+use num_bigint::BigUint;
 
 use crate::felt::Felt;
 
 // Bool <-> Felt
-
 impl From<bool> for Felt {
     fn from(value: bool) -> Felt {
         match value {
             true => Felt::ONE,
             false => Felt::ZERO,
         }
+    }
+}
+
+// From<biguint> for Felt
+impl From<BigUint> for Felt {
+    fn from(value: BigUint) -> Felt {
+        Felt::from_bytes_le_slice(&value.to_bytes_le())
     }
 }
 

@@ -54,7 +54,7 @@ fn test_hash_with_inputs(inputs: &[Felt], expected: Felt) {
     let mut stack = BidirectionalStackAccount::default();
 
     // Create the PoseidonHashMany task with the stack reference
-    let hash_task = PoseidonHashMany::new(inputs);
+    let hash_task = PoseidonHashMany::new(inputs.len());
     PoseidonHashMany::push_input(inputs, &mut stack);
     stack.push_task(hash_task);
 

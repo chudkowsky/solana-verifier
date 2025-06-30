@@ -28,6 +28,7 @@ pub trait BidirectionalStack {
     fn borrow_mut_back(&mut self) -> &mut [u8];
     fn is_empty_front(&self) -> bool;
     fn is_empty_back(&self) -> bool;
+    fn get_proof_reference(&mut self) -> &mut [u8];
 }
 
 pub trait Scheduler: BidirectionalStack {

@@ -5,28 +5,29 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction,
 };
-use stark::felt::Felt;
 use stark::poseidon::PoseidonHashMany;
+use stark::{felt::Felt, swiftness::stark::types::cast_struct_to_slice};
 use std::{mem::size_of, path::Path};
 use utils::{AccountCast, BidirectionalStack, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
 
 /// Main entry point for the Solana program client
-fn main() -> client::Result<()> {
+#[tokio::main]
+async fn main() -> client::Result<()> {
     // Parse command-line arguments
     let config = Config::parse_args();
 
     // Initialize the Solana client
-    let client = initialize_client(&config)?;
+    let client = initialize_client(&config).await?;
 
     // Setup the payer account
-    let payer = setup_payer(&client, &config)?;
+    let payer = setup_payer(&client, &config).await?;
 
     // Define program path
     let program_path = Path::new("target/deploy/verifier.so");
 
     // Deploy or use existing program
-    let program_id = setup_program(&client, &payer, &config, program_path)?;
+    let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
     println!("Using program ID: {}", program_id);
 
@@ -42,7 +43,7 @@ fn main() -> client::Result<()> {
     let create_account_ix = system_instruction::create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
-        client.get_minimum_balance_for_rent_exemption(space)?,
+        client.get_minimum_balance_for_rent_exemption(space).await?,
         space as u64,
         &program_id,
     );
@@ -52,16 +53,21 @@ fn main() -> client::Result<()> {
         &[create_account_ix],
         Some(&payer.pubkey()),
         &[&payer, &stack_account],
-        client.get_latest_blockhash()?,
+        client.get_latest_blockhash().await?,
     );
 
-    let signature = client.send_and_confirm_transaction(&create_account_tx)?;
+    let signature = client
+        .send_and_confirm_transaction(&create_account_tx)
+        .await?;
     println!("Account created successfully: {}", signature);
+    // Cast to stack account to see if initialized correctly
 
+    let mut stack_init_input: [u64; 2] = [0, 65536];
+    let stack_init_bytes = cast_struct_to_slice(&mut stack_init_input);
     // Initialize the account
     let init_ix = Instruction::new_with_borsh(
         program_id,
-        &VerifierInstruction::Initialize,
+        &VerifierInstruction::SetAccountData(0, stack_init_bytes.to_vec()),
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
@@ -70,15 +76,14 @@ fn main() -> client::Result<()> {
         &[init_ix],
         Some(&payer.pubkey()),
         &[&payer],
-        client.get_latest_blockhash()?,
+        client.get_latest_blockhash().await?,
     );
-
-    let init_signature = client.send_and_confirm_transaction(&init_tx)?;
+    let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
     println!("Account initialized: {}", init_signature);
 
-    // Cast to stack account to see if initialized correctly
     let account_data_after_init = client
         .get_account_data(&stack_account.pubkey())
+        .await
         .map_err(ClientError::SolanaClientError)?;
     let stack = BidirectionalStackAccount::cast(&account_data_after_init);
     println!("Stack front_index: {}", stack.front_index);
@@ -126,10 +131,10 @@ fn main() -> client::Result<()> {
             &[push_data_ix],
             Some(&payer.pubkey()),
             &[&payer],
-            client.get_latest_blockhash()?,
+            client.get_latest_blockhash().await?,
         );
 
-        let push_data_sig = client.send_and_confirm_transaction(&push_data_tx)?;
+        let _push_data_sig = client.send_and_confirm_transaction(&push_data_tx).await?;
         println!("Pushed input value: {}", input);
     }
 
@@ -145,14 +150,14 @@ fn main() -> client::Result<()> {
             &[push_data_ix],
             Some(&payer.pubkey()),
             &[&payer],
-            client.get_latest_blockhash()?,
+            client.get_latest_blockhash().await?,
         );
 
-        let push_data_sig = client.send_and_confirm_transaction(&push_data_tx)?;
+        let _push_data_sig = client.send_and_confirm_transaction(&push_data_tx).await?;
         println!("Pushed zero value");
     }
 
-    let poseidon_task = PoseidonHashMany::new(&inputs);
+    let poseidon_task = PoseidonHashMany::new(inputs.len());
 
     // Push the task to the stack
     let push_task_ix = Instruction::new_with_borsh(
@@ -165,10 +170,10 @@ fn main() -> client::Result<()> {
         &[push_task_ix],
         Some(&payer.pubkey()),
         &[&payer],
-        client.get_latest_blockhash()?,
+        client.get_latest_blockhash().await?,
     );
 
-    let push_signature = client.send_and_confirm_transaction(&push_tx)?;
+    let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
     println!("\nPoseidon hash task pushed: {}", push_signature);
 
     // Execute until task is complete
@@ -185,16 +190,17 @@ fn main() -> client::Result<()> {
             &[execute_ix],
             Some(&payer.pubkey()),
             &[&payer],
-            client.get_latest_blockhash()?,
+            client.get_latest_blockhash().await?,
         );
 
-        let _execute_signature = client.send_and_confirm_transaction(&execute_tx)?;
+        let _execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
         println!(".");
         steps += 1;
 
         // Check stack state
         let account_data = client
             .get_account_data(&stack_account.pubkey())
+            .await
             .map_err(ClientError::SolanaClientError)?;
         let stack = BidirectionalStackAccount::cast(&account_data);
         if stack.is_empty_back() {
@@ -206,6 +212,7 @@ fn main() -> client::Result<()> {
     // Read and display the result
     let mut account_data = client
         .get_account_data(&stack_account.pubkey())
+        .await
         .map_err(ClientError::SolanaClientError)?;
     let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
     let result_bytes = stack.borrow_front();

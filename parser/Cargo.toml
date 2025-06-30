@@ -1,0 +1,16 @@
+[package]
+name = "swiftness_proof_parser"
+edition = "2021"
+version = "1.0.0"
+
+[dependencies]
+anyhow = "1.0.80"
+bytemuck = { version = "1.21.0", features = ["derive"] }
+num-bigint = { version = "0.4.4", features = ["serde"] }
+regex = "1.10.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.114"
+starknet-crypto = "0.7.1"
+starknet-types-core = "0.1.5"
+thiserror = "1.0.61"
+stark = { path = "../tasks/stark" }

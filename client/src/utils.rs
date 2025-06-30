@@ -1,23 +1,24 @@
 #![allow(deprecated)]
 
-use solana_client::rpc_client::RpcClient;
 use solana_program::{
     bpf_loader_upgradeable,
     instruction::{AccountMeta, Instruction},
     system_instruction,
 };
+use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     bpf_loader_upgradeable::UpgradeableLoaderState,
     commitment_config::CommitmentConfig,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
+
 use std::{fs, path::Path, thread::sleep};
 
 use crate::{ClientError, Config, Result};
 
 /// Initialize the Solana RPC client and verify connection
-pub fn initialize_client(config: &Config) -> Result<RpcClient> {
+pub async fn initialize_client(config: &Config) -> Result<RpcClient> {
     println!("Using RPC URL: {}", config.rpc_url);
 
     let client = RpcClient::new_with_timeout_and_commitment(
@@ -29,6 +30,7 @@ pub fn initialize_client(config: &Config) -> Result<RpcClient> {
     // Verify connection to validator
     client
         .get_version()
+        .await
         .map(|version| {
             println!(
                 "Connected to Solana validator version: {}",
@@ -45,7 +47,7 @@ pub fn initialize_client(config: &Config) -> Result<RpcClient> {
 }
 
 /// Setup the payer account, creating a new one and funding it if necessary
-pub fn setup_payer(client: &RpcClient, config: &Config) -> Result<Keypair> {
+pub async fn setup_payer(client: &RpcClient, config: &Config) -> Result<Keypair> {
     let payer_keypair_path = config.keypairs_dir.join("payer-keypair.json");
 
     match read_keypair_file(&payer_keypair_path) {
@@ -66,14 +68,15 @@ pub fn setup_payer(client: &RpcClient, config: &Config) -> Result<Keypair> {
             println!("Created new payer keypair: {}", keypair.pubkey());
 
             // Fund the account with airdrops
-            request_and_confirm_airdrop(client, &keypair, config.airdrop_amount, config)?;
+            request_and_confirm_airdrop(client, &keypair, config.airdrop_amount, config).await?;
 
             request_and_confirm_airdrop(
                 client,
                 &keypair,
                 config.airdrop_amount * config.additional_airdrop_multiplier,
                 config,
-            )?;
+            )
+            .await?;
 
             println!(
                 "Airdropped {} SOL to payer",
@@ -87,7 +90,7 @@ pub fn setup_payer(client: &RpcClient, config: &Config) -> Result<Keypair> {
 }
 
 /// Request an airdrop and confirm the transaction
-pub fn request_and_confirm_airdrop(
+pub async fn request_and_confirm_airdrop(
     client: &RpcClient,
     keypair: &Keypair,
     amount: u64,
@@ -102,6 +105,7 @@ pub fn request_and_confirm_airdrop(
 
     let sig = client
         .request_airdrop(&keypair.pubkey(), amount)
+        .await
         .map_err(|e| {
             ClientError::TransactionError(format!(
                 "Failed to request {} of {} SOL: {}",
@@ -111,21 +115,21 @@ pub fn request_and_confirm_airdrop(
             ))
         })?;
 
-    confirm_transaction_with_retries(client, &sig, config.transaction_retry_count, config)?;
+    confirm_transaction_with_retries(client, &sig, config.transaction_retry_count, config).await?;
 
     println!("{} confirmed!", message);
     Ok(())
 }
 
 /// Confirm a transaction with retries
-pub fn confirm_transaction_with_retries(
+pub async fn confirm_transaction_with_retries(
     client: &RpcClient,
     signature: &solana_sdk::signature::Signature,
     retries: usize,
     config: &Config,
 ) -> Result<()> {
     for attempt in 1..=retries {
-        match client.confirm_transaction(signature) {
+        match client.confirm_transaction(signature).await {
             Ok(true) => return Ok(()),
             Ok(false) if attempt < retries => {
                 sleep(config.retry_sleep_duration());
@@ -159,7 +163,7 @@ pub fn confirm_transaction_with_retries(
 }
 
 /// Setup the program - either use existing deployment or deploy a new one
-pub fn setup_program(
+pub async fn setup_program(
     client: &RpcClient,
     payer: &Keypair,
     config: &Config,
@@ -193,14 +197,14 @@ pub fn setup_program(
         let program_id = program_keypair.pubkey();
 
         // Check if the program is already deployed
-        match client.get_account(&program_id) {
+        match client.get_account(&program_id).await {
             Ok(_) => {
                 println!("Program already deployed at ID: {}", program_id);
                 Ok(program_id)
             }
             Err(_) => {
                 println!("Deploying program with ID: {}", program_id);
-                deploy_program(client, payer, &program_keypair, &program_data, config)?;
+                deploy_program(client, payer, &program_keypair, &program_data, config).await?;
                 println!("Program deployed successfully!");
                 Ok(program_id)
             }
@@ -211,7 +215,7 @@ pub fn setup_program(
         let program_id = program_keypair.pubkey();
         println!("Deploying new program with ID: {}", program_id);
 
-        deploy_program(client, payer, &program_keypair, &program_data, config)?;
+        deploy_program(client, payer, &program_keypair, &program_data, config).await?;
 
         // Ensure keypairs directory exists
         if !config.keypairs_dir.exists() {
@@ -226,7 +230,7 @@ pub fn setup_program(
 }
 
 /// Setup a program account - either use existing or create a new one
-pub fn setup_account(
+pub async fn setup_account(
     client: &RpcClient,
     payer: &Keypair,
     program_id: &solana_sdk::pubkey::Pubkey,
@@ -249,6 +253,7 @@ pub fn setup_account(
         // Calculate the space needed for the account
         let rent = client
             .get_minimum_balance_for_rent_exemption(space)
+            .await
             .map_err(ClientError::SolanaClientError)?;
 
         // Create a transaction to create the account
@@ -262,6 +267,7 @@ pub fn setup_account(
 
         let blockhash = client
             .get_latest_blockhash()
+            .await
             .map_err(ClientError::SolanaClientError)?;
 
         let create_tx = Transaction::new_signed_with_payer(
@@ -274,6 +280,7 @@ pub fn setup_account(
         // Send and confirm the transaction
         let create_sig = client
             .send_and_confirm_transaction(&create_tx)
+            .await
             .map_err(|e| {
                 ClientError::TransactionError(format!(
                     "Failed to send and confirm account creation transaction: {}",
@@ -295,7 +302,7 @@ pub fn setup_account(
 }
 
 /// Send an instruction to a program
-pub fn send_instruction(
+pub async fn send_instruction(
     client: &RpcClient,
     payer: &Keypair,
     program_id: &solana_sdk::pubkey::Pubkey,
@@ -308,6 +315,7 @@ pub fn send_instruction(
     // Get latest blockhash
     let blockhash = client
         .get_latest_blockhash()
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create a transaction with the instruction
@@ -321,6 +329,7 @@ pub fn send_instruction(
     // Send and confirm the transaction
     let signature = client
         .send_and_confirm_transaction(&transaction)
+        .await
         .map_err(|e| {
             ClientError::TransactionError(format!("Failed to send and confirm transaction: {}", e))
         })?;
@@ -342,7 +351,7 @@ pub fn send_instruction(
 /// * `_program_id` - The program ID (kept for API consistency but not used directly)
 /// * `_account` - The account to interact with (kept for API consistency but not used directly)
 /// * `instructions` - The vector of instructions to include in the transaction
-pub fn interact_with_program_instructions(
+pub async fn interact_with_program_instructions(
     client: &RpcClient,
     payer: &Keypair,
     _program_id: &solana_sdk::pubkey::Pubkey, // Unused but kept for API consistency
@@ -352,6 +361,7 @@ pub fn interact_with_program_instructions(
     // Get latest blockhash
     let blockhash = client
         .get_latest_blockhash()
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create a transaction with the instructions
@@ -365,6 +375,7 @@ pub fn interact_with_program_instructions(
     // Send and confirm the transaction
     let signature = client
         .send_and_confirm_transaction(&transaction)
+        .await
         .map_err(|e| {
             ClientError::TransactionError(format!("Failed to send and confirm transaction: {}", e))
         })?;
@@ -374,7 +385,7 @@ pub fn interact_with_program_instructions(
 }
 
 /// Deploy a program to the blockchain using BPF loader
-pub fn deploy_program(
+pub async fn deploy_program(
     client: &RpcClient,
     payer: &Keypair,
     program_keypair: &Keypair,
@@ -397,6 +408,7 @@ pub fn deploy_program(
         .get_minimum_balance_for_rent_exemption(
             buffer_data_len + UpgradeableLoaderState::size_of_buffer_metadata(),
         )
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create buffer account
@@ -412,6 +424,7 @@ pub fn deploy_program(
     // Get latest blockhash
     let blockhash = client
         .get_latest_blockhash()
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create and send transaction
@@ -424,13 +437,14 @@ pub fn deploy_program(
 
     let signature = client
         .send_and_confirm_transaction(&create_buffer_tx)
+        .await
         .map_err(|e| {
             ClientError::TransactionError(format!("Failed to create buffer account: {}", e))
         })?;
     println!("Buffer account created: {}", signature);
 
     // Write program data to the buffer account in chunks
-    write_program_to_buffer(client, payer, &buffer_keypair, program_data, config)?;
+    write_program_to_buffer(client, payer, &buffer_keypair, program_data, config).await?;
 
     // Calculate rent for the program data
     let programdata_len = program_len;
@@ -438,6 +452,7 @@ pub fn deploy_program(
         .get_minimum_balance_for_rent_exemption(
             programdata_len + UpgradeableLoaderState::size_of_programdata_metadata(),
         )
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create deploy instruction
@@ -454,6 +469,7 @@ pub fn deploy_program(
     // Get latest blockhash
     let blockhash = client
         .get_latest_blockhash()
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // Create and send transaction
@@ -466,6 +482,7 @@ pub fn deploy_program(
 
     let signature = client
         .send_and_confirm_transaction(&deploy_tx)
+        .await
         .map_err(|e| ClientError::TransactionError(format!("Failed to deploy program: {}", e)))?;
     println!("Program deployed: {}", signature);
 
@@ -473,7 +490,7 @@ pub fn deploy_program(
 }
 
 /// Write program data to buffer in chunks
-pub fn write_program_to_buffer(
+pub async fn write_program_to_buffer(
     client: &RpcClient,
     payer: &Keypair,
     buffer_keypair: &Keypair,
@@ -496,6 +513,7 @@ pub fn write_program_to_buffer(
         // Get latest blockhash for each chunk to avoid expired blockhash issues
         let blockhash = client
             .get_latest_blockhash()
+            .await
             .map_err(ClientError::SolanaClientError)?;
 
         let write_tx = Transaction::new_signed_with_payer(
@@ -506,7 +524,7 @@ pub fn write_program_to_buffer(
         );
 
         // Send transaction without waiting for confirmation
-        client.send_transaction(&write_tx).map_err(|e| {
+        client.send_transaction(&write_tx).await.map_err(|e| {
             ClientError::TransactionError(format!(
                 "Failed to send chunk at offset {}: {}",
                 offset, e
@@ -534,7 +552,7 @@ pub fn write_program_to_buffer(
             sleep(config.retry_sleep_duration());
         }
 
-        match verify_buffer_data(client, buffer_keypair, program_data) {
+        match verify_buffer_data(client, buffer_keypair, program_data).await {
             Ok(true) => {
                 verified = true;
                 println!("Buffer data verified successfully!");
@@ -560,7 +578,7 @@ pub fn write_program_to_buffer(
 }
 
 /// Verify that the buffer account contains the expected program data
-fn verify_buffer_data(
+async fn verify_buffer_data(
     client: &RpcClient,
     buffer_keypair: &Keypair,
     expected_data: &[u8],
@@ -568,6 +586,7 @@ fn verify_buffer_data(
     // Get the buffer account data
     let account_data = client
         .get_account_data(&buffer_keypair.pubkey())
+        .await
         .map_err(ClientError::SolanaClientError)?;
 
     // The buffer account data starts with metadata (UpgradeableLoaderState::Buffer), followed by the program data

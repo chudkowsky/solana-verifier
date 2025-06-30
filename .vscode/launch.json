@@ -1,0 +1,513 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "client",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'add'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=add",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "add",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'add'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=add",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "add",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'cast'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=cast",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "cast",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'cast'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=cast",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "cast",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'exp'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=exp",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "exp",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'exp'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=exp",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "exp",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'fib'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=fib",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "fib",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'fib'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=fib",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "fib",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'greeting'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=greeting",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "greeting",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'greeting'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=greeting",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "greeting",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'hades'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=hades",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "hades",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'hades'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=hades",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "hades",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'mul'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=mul",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "mul",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'mul'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=mul",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "mul",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'poseidon'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=poseidon",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "poseidon",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'poseidon'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=poseidon",
+                    "--package=client"
+                ],
+                "filter": {
+                    "name": "poseidon",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'arithmetic'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=arithmetic"
+                ],
+                "filter": {
+                    "name": "arithmetic",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'utils'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=utils"
+                ],
+                "filter": {
+                    "name": "utils",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'greeting'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=greeting"
+                ],
+                "filter": {
+                    "name": "greeting",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'stark'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=stark"
+                ],
+                "filter": {
+                    "name": "stark",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'verifier'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "verifier",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'arithmetic_test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=arithmetic_test",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "arithmetic_test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'hades_test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=hades_test",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "hades_test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'hash_public_inputs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=hash_public_inputs",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "hash_public_inputs",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'poseidon_test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=poseidon_test",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "poseidon_test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'single_test'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=single_test",
+                    "--package=verifier"
+                ],
+                "filter": {
+                    "name": "single_test",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
