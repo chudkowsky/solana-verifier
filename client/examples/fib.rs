@@ -7,7 +7,7 @@ use solana_sdk::{
 };
 use solana_system_interface::instruction::create_account;
 use stark::swiftness::stark::types::cast_struct_to_slice;
-use std::{mem::size_of, path::Path};
+use std::{mem::size_of, path::Path, time::Duration};
 use utils::{AccountCast, BidirectionalStack, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
 
@@ -130,16 +130,18 @@ async fn main() -> client::Result<()> {
     println!("Stack front index: {}", stack_after_push.front_index);
     println!("Stack back index: {}", stack_after_push.back_index);
 
-    let mut steps = 0;
-    loop {
-        println!(
-            "Executing task, is empty: {}",
-            stack_after_push.is_empty_back()
-        );
+    let mut account_data = client
+        .get_account_data(&stack_account.pubkey())
+        .await
+        .map_err(ClientError::SolanaClientError)?;
+    let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
+    let simulation_steps = stack.simulate();
+    println!("Simulation steps: {simulation_steps}");
+    for i in 0..simulation_steps {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute(steps as u32),
+            &VerifierInstruction::Execute(i as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -150,24 +152,10 @@ async fn main() -> client::Result<()> {
             client.get_latest_blockhash().await?,
         );
 
-        let execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
-        println!("\nTask executed: {execute_signature}");
-
-        // Check final stack state
-        let account_data = client
-            .get_account_data(&stack_account.pubkey())
-            .await
-            .map_err(ClientError::SolanaClientError)?;
-        let stack = BidirectionalStackAccount::cast(&account_data);
-        println!("Stack front index: {}", stack.front_index);
-        println!("Stack back index: {}", stack.back_index);
-        println!("Executed task, is empty: {}", stack.is_empty_back());
-        if stack.is_empty_back() {
-            break;
-        }
-        steps += 1;
+        let execute_signature = client.send_transaction(&execute_tx).await?;
+        println!("execute signature: {execute_signature}");
     }
-
+    tokio::time::sleep(Duration::from_secs(5)).await;
     // Read and display the result
     let account_data = client
         .get_account_data(&stack_account.pubkey())

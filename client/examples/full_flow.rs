@@ -154,12 +154,18 @@ async fn main() -> client::Result<()> {
 
     let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);
 
-    let mut steps = 0;
-    loop {
+    let mut account_data = client
+        .get_account_data(&stack_account.pubkey())
+        .await
+        .map_err(ClientError::SolanaClientError)?;
+    let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
+    let simulation_steps = stack.simulate();
+    println!("Simulation steps: {simulation_steps}");
+    for i in 0..simulation_steps {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute(steps as u32),
+            &VerifierInstruction::Execute(i as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -170,22 +176,11 @@ async fn main() -> client::Result<()> {
             client.get_latest_blockhash().await?,
         );
         let execute_signature = client.send_transaction(&execute_tx).await?;
-        tokio::time::sleep(Duration::from_millis(25)).await;
-        println!("Execute: {execute_signature:?}");
-        steps += 1;
-        println!("steps: {steps}");
-        // Check stack state
-        let account_data = client
-            .get_account_data(&stack_account.pubkey())
-            .await
-            .map_err(ClientError::SolanaClientError)?;
-        let stack = BidirectionalStackAccount::cast(&account_data);
-        if stack.is_empty_back() {
-            println!("\nExecution complete after {steps} steps");
-            break;
-        }
+        println!("execute signature: {execute_signature:?}");
+        println!("i: {i}");
     }
-    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     // Read and display the result
     let mut account_data = client

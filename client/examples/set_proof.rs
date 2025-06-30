@@ -107,7 +107,6 @@ async fn main() -> client::Result<()> {
 
     let stack = BidirectionalStackAccount::cast(&account_data_after_set_proof);
 
-    // println!("Proof: {:?}", stack.proof);
     println!("Stack front index: {:?}", stack.front_index);
     println!("Stack back index: {:?}", stack.back_index);
     println!("Stack is empty front: {:?}", stack.is_empty_front());
