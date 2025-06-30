@@ -21,6 +21,7 @@ use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccoun
 pub const CHUNK_SIZE: usize = 1000;
 
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     let config = Config::parse_args();
     let client = initialize_client(&config).await?;

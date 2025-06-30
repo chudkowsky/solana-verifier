@@ -15,7 +15,7 @@ fn main() {
 
     // Get the out directory for generated code
     let out_dir = env::var_os("OUT_DIR").unwrap();
-    let out_filename = format!("{}_executable_dispatch.rs", current_crate_name);
+    let out_filename = format!("{current_crate_name}_executable_dispatch.rs");
     let out_path = Path::new(&out_dir).join(out_filename);
 
     let mut types = HashSet::new();
@@ -61,7 +61,7 @@ fn main() {
     dispatch_code.push_str("    // Get the data from the back of the stack using unsafe\n");
     dispatch_code.push_str("    let data = unsafe { (*stack_ptr).borrow_mut_back() };\n");
     dispatch_code.push_str("    let mut tasks = Vec::new();\n");
-    dispatch_code.push_str("    let mut is_finished = false;\n");
+    dispatch_code.push_str("    let is_finished;\n");
 
     // We need to ensure we have enough data (at least 4 bytes for u32)
     dispatch_code.push_str("    if data.len() < 4 {\n");
@@ -76,28 +76,23 @@ fn main() {
 
     // Add a case for each type in all crates
     for (type_name, crate_name) in &types {
-        dispatch_code.push_str(&format!("        // TYPE_TAG from {} crate\n", crate_name));
+        dispatch_code.push_str(&format!("        // TYPE_TAG from {crate_name} crate\n"));
         dispatch_code.push_str(&format!(
-            "        {}::{}::TYPE_TAG => {{\n",
-            crate_name, type_name
+            "        {crate_name}::{type_name}::TYPE_TAG => {{\n"
         ));
 
         dispatch_code.push_str(
             "            // Execute the task using unsafe to get around borrow checker\n",
         );
         dispatch_code.push_str(&format!(
-                "            unsafe {{\n                let obj = {}::{}::cast_mut(&mut data[4..(4 + std::mem::size_of::<{}::{}>())]);\n                let returned_tasks = obj.execute(&mut *stack_ptr);\n                tasks.extend(returned_tasks);\n                is_finished = obj.is_finished();\n            }}\n",
-                crate_name,
-                type_name,
-                crate_name,
-                type_name
+                "            unsafe {{\n                let obj = {crate_name}::{type_name}::cast_mut(&mut data[4..(4 + std::mem::size_of::<{crate_name}::{type_name}>())]);\n                let returned_tasks = obj.execute(&mut *stack_ptr);\n                tasks.extend(returned_tasks);\n                is_finished = obj.is_finished();\n            }}\n"
             ));
         dispatch_code.push_str("        },\n");
     }
 
     // Add default case
     dispatch_code.push_str("        _ => {\n");
-    dispatch_code.push_str("            panic!(\"Unknown type tag: {}\", type_tag);\n");
+    dispatch_code.push_str("            panic!(\"Unknown type tag: {type_tag}\");\n");
     dispatch_code.push_str("        }\n");
     dispatch_code.push_str("    }\n");
     dispatch_code.push_str("    (tasks, is_finished)\n");
@@ -291,7 +286,7 @@ fn find_executable_types(
                 let full_path = if module_path.is_empty() {
                     current_struct.clone()
                 } else {
-                    format!("{}::{}", module_path, current_struct)
+                    format!("{module_path}::{current_struct}")
                 };
 
                 // Add the fully qualified name and crate
@@ -313,7 +308,7 @@ fn find_executable_types(
             let full_path = if module_path.is_empty() {
                 struct_name.clone()
             } else {
-                format!("{}::{}", module_path, struct_name)
+                format!("{module_path}::{struct_name}")
             };
 
             // Add the fully qualified name and crate
