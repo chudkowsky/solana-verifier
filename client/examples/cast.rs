@@ -22,5 +22,5 @@ fn main() {
     my_struct.c = 30;
 
     println!("After: {} {} {}", my_struct.a, my_struct.b, my_struct.c);
-    println!("Slice: {:?}", slice);
+    println!("Slice: {slice:?}");
 }

@@ -6,9 +6,9 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction::create_account;
 use stark::{
     felt::Felt,
     stark_proof::VerifyPublicInput,
@@ -28,6 +28,7 @@ pub struct Input {
     pub proof: StarkProof,
 }
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     let config = Config::parse_args();
     let client = initialize_client(&config).await?;
@@ -38,16 +39,16 @@ async fn main() -> client::Result<()> {
 
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
 
     let stack_account = Keypair::new();
 
     println!("Creating new account: {}", stack_account.pubkey());
 
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -93,10 +94,10 @@ async fn main() -> client::Result<()> {
         );
         let set_proof_signature: solana_sdk::signature::Signature =
             client.send_and_confirm_transaction(&set_proof_tx).await?;
-        println!("Set proof: {}: {}", i, set_proof_signature);
+        println!("Set proof: {i}: {set_proof_signature}");
     }
 
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
     println!("\nSet Proof on Solana");
     println!("====================");
     let input = include_str!("../../example_proof/saya.json");
@@ -119,7 +120,7 @@ async fn main() -> client::Result<()> {
         })
         .collect::<Vec<_>>();
 
-    println!("Instructions number: {:?}", instructions.len());
+    println!("Instructions number: {instructions:?}");
     for (i, instruction) in instructions.iter().enumerate() {
         let set_proof_tx = Transaction::new_signed_with_payer(
             &[instruction.clone()],
@@ -129,7 +130,7 @@ async fn main() -> client::Result<()> {
         );
         let set_proof_signature: solana_sdk::signature::Signature =
             client.send_transaction(&set_proof_tx).await?;
-        println!("Set proof: {}: {}", i, set_proof_signature);
+        println!("Set proof: {i}: {set_proof_signature}");
     }
 
     let task = VerifyPublicInput::new();
@@ -149,7 +150,7 @@ async fn main() -> client::Result<()> {
     let verify_public_input_signature: solana_sdk::signature::Signature = client
         .send_and_confirm_transaction(&verify_public_input_tx)
         .await?;
-    println!("Verify public input: {:?}", verify_public_input_signature);
+    println!("Verify public input: {verify_public_input_signature:?}");
 
     let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);
 
@@ -170,9 +171,9 @@ async fn main() -> client::Result<()> {
         );
         let execute_signature = client.send_transaction(&execute_tx).await?;
         tokio::time::sleep(Duration::from_millis(25)).await;
-        println!("Execute: {:?}", execute_signature);
+        println!("Execute: {execute_signature:?}");
         steps += 1;
-        println!("steps: {}", steps);
+        println!("steps: {steps}");
         // Check stack state
         let account_data = client
             .get_account_data(&stack_account.pubkey())
@@ -180,7 +181,7 @@ async fn main() -> client::Result<()> {
             .map_err(ClientError::SolanaClientError)?;
         let stack = BidirectionalStackAccount::cast(&account_data);
         if stack.is_empty_back() {
-            println!("\nExecution complete after {} steps", steps);
+            println!("\nExecution complete after {steps} steps");
             break;
         }
     }
@@ -196,8 +197,8 @@ async fn main() -> client::Result<()> {
     stack.pop_front();
     let result_output_hash = Felt::from_bytes_be_slice(stack.borrow_front());
     stack.pop_front();
-    println!("\nProgram Hash: {:?}", result_program_hash);
-    println!("Output Hash: {:?}", result_output_hash);
+    println!("\nProgram Hash: {result_program_hash:?}");
+    println!("Output Hash: {result_output_hash:?}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
 
