@@ -25,6 +25,17 @@ impl Default for BidirectionalStackAccount {
     }
 }
 
+impl BidirectionalStackAccount {
+    pub fn simulate(&mut self) -> u128 {
+        let mut simulation_steps = 0;
+        while !self.is_empty_back() {
+            self.execute();
+            simulation_steps += 1;
+        }
+        simulation_steps
+    }
+}
+
 impl AccountCast for BidirectionalStackAccount {}
 
 impl BidirectionalStack for BidirectionalStackAccount {

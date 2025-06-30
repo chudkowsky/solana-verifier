@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
 use solana_sdk::{
@@ -214,13 +214,17 @@ async fn main() -> client::Result<()> {
 
     let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
     println!("\nHash Public Inputs task pushed: {push_signature}");
-
-    let mut steps = 0;
-    loop {
+    let mut account_data = client
+        .get_account_data(&stack_account.pubkey())
+        .await
+        .map_err(ClientError::SolanaClientError)?;
+    let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
+    let simulation_steps = stack.simulate();
+    for i in 0..simulation_steps {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute(steps as u32),
+            &VerifierInstruction::Execute(i as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -231,21 +235,12 @@ async fn main() -> client::Result<()> {
             client.get_latest_blockhash().await?,
         );
 
-        let _execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
-        println!(".");
-        steps += 1;
-
-        // Check stack state
-        let account_data = client
-            .get_account_data(&stack_account.pubkey())
-            .await
-            .map_err(ClientError::SolanaClientError)?;
-        let stack = BidirectionalStackAccount::cast(&account_data);
-        if stack.is_empty_back() {
-            println!("\nExecution complete after {steps} steps");
-            break;
-        }
+        let execute_signature = client.send_transaction(&execute_tx).await?;
+        println!("execute signature: {execute_signature}");
+        println!("i: {i}");
     }
+
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
     // Read and display the result
     let mut account_data = client
@@ -261,6 +256,7 @@ async fn main() -> client::Result<()> {
     println!("Output Hash: {result_output_hash:?}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
+    println!("Simulation steps: {simulation_steps}");
 
     let expected_result =
         Felt::from_hex("0xa6830417400f5f63d8f1d81fc73a968a6ea4d677da62da24365bd0536b4233").unwrap();
