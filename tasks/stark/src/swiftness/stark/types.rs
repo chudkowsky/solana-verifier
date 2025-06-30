@@ -88,11 +88,11 @@ mod test {
             unsent_commitment: StarkUnsentCommitment::default(),
             witness: StarkWitness::default(),
         };
-        println!("proof: {:?}", proof);
+        println!("proof: {proof:?}");
         let mut proof_clone = proof.clone();
-        let mut bytes = cast_struct_to_slice(&mut proof_clone);
+        let bytes = cast_struct_to_slice(&mut proof_clone);
 
-        let proof_from_bytes = cast_slice_to_struct::<StarkProof>(&mut bytes);
+        let proof_from_bytes = cast_slice_to_struct::<StarkProof>(bytes);
         assert_eq!(proof_from_bytes, &proof);
     }
 }

@@ -3,9 +3,9 @@ use client::{initialize_client, setup_payer, setup_program, ClientError, Config}
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction::create_account;
 use stark::swiftness::stark::types::cast_struct_to_slice;
 use std::{mem::size_of, path::Path};
 use utils::{AccountCast, BidirectionalStack, Executable};
@@ -13,6 +13,7 @@ use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccoun
 
 /// Main entry point for the Solana program client
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     // Parse command-line arguments
     let config = Config::parse_args();
@@ -29,7 +30,7 @@ async fn main() -> client::Result<()> {
     // Deploy or use existing program
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
 
     // Create a new account that's owned by our program
     let stack_account = Keypair::new();
@@ -37,10 +38,10 @@ async fn main() -> client::Result<()> {
 
     // Calculate the space needed for our account
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
     // Create account instruction
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -59,7 +60,7 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
 
     // Initialize the account
     let mut stack_init_input: [u64; 2] = [0, 65536];
@@ -80,7 +81,7 @@ async fn main() -> client::Result<()> {
     );
 
     let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {}", init_signature);
+    println!("Account initialized: {init_signature}");
 
     // Cast to stack account to see if initialized correctly
     let account_data_after_init = client
@@ -112,7 +113,7 @@ async fn main() -> client::Result<()> {
     );
 
     let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nTask pushed: {}", push_signature);
+    println!("\nTask pushed: {push_signature}");
 
     // Check stack state after pushing
     let account_data_after_push = client
@@ -143,7 +144,7 @@ async fn main() -> client::Result<()> {
         );
 
         let execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
-        println!("\nTask executed: {}", execute_signature);
+        println!("\nTask executed: {execute_signature}");
 
         // Check final stack state
         let account_data = client
@@ -168,7 +169,7 @@ async fn main() -> client::Result<()> {
     let stack = BidirectionalStackAccount::cast(&account_data);
     let result_bytes = stack.borrow_front();
     let result = u128::from_be_bytes(result_bytes.try_into().unwrap());
-    println!("\nMul result (12 × 15): {}", result);
+    println!("\nMul result (12 × 15): {result}");
 
     println!("\nArithmetic operation successfully executed on Solana!");
 

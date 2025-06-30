@@ -5,9 +5,9 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
     signer::Signer,
-    system_instruction,
     transaction::Transaction,
 };
+use solana_system_interface::instruction::create_account;
 use stark::{
     felt::Felt, stark_proof::HashPublicInputs, swiftness::stark::types::cast_struct_to_slice,
 };
@@ -16,6 +16,7 @@ use utils::{AccountCast, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
 
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     let config = Config::parse_args();
     let client = initialize_client(&config).await?;
@@ -26,16 +27,16 @@ async fn main() -> client::Result<()> {
 
     let program_id = setup_program(&client, &payer, &config, program_path).await?;
 
-    println!("Using program ID: {}", program_id);
+    println!("Using program ID: {program_id}");
 
     let stack_account = Keypair::new();
 
     println!("Creating new account: {}", stack_account.pubkey());
 
     let space = size_of::<BidirectionalStackAccount>();
-    println!("Account space: {} bytes", space);
+    println!("Account space: {space} bytes");
 
-    let create_account_ix = system_instruction::create_account(
+    let create_account_ix = create_account(
         &payer.pubkey(),
         &stack_account.pubkey(),
         client.get_minimum_balance_for_rent_exemption(space).await?,
@@ -53,7 +54,7 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
-    println!("Account created successfully: {}", signature);
+    println!("Account created successfully: {signature}");
 
     let mut stack_init_input: [u64; 2] = [0, 65536];
     let stack_init_bytes = cast_struct_to_slice(&mut stack_init_input);
@@ -73,7 +74,7 @@ async fn main() -> client::Result<()> {
     );
 
     let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {}", init_signature);
+    println!("Account initialized: {init_signature}");
 
     let account_data_after_init = client
         .get_account_data(&stack_account.pubkey())
@@ -156,13 +157,14 @@ async fn main() -> client::Result<()> {
         Felt::from_hex("0x3").unwrap(),
     ];
 
-    let input = vec![program.clone(), output.clone()];
+    let input = [program.clone(), output.clone()];
     for input in input.iter().rev() {
         //Pad input with 1 followed by 0's (if necessary).
         let mut padded_input = input.clone();
         padded_input.push(Felt::ONE);
-        padded_input.resize((padded_input.len() + 1) / 2 * 2, Felt::ZERO);
-        println!("Padded input length: {}", padded_input.len());
+        let len = padded_input.len().div_ceil(2) * 2;
+        padded_input.resize(len, Felt::ZERO);
+        println!("Padded input length: {len}");
         for input in padded_input.iter().rev() {
             let push_data_ix = Instruction::new_with_borsh(
                 program_id,
@@ -176,7 +178,7 @@ async fn main() -> client::Result<()> {
                 client.get_latest_blockhash().await?,
             );
             let push_signature = client.send_and_confirm_transaction(&push_data_tx).await?;
-            println!("pushed data signature: {}", push_signature);
+            println!("pushed data signature: {push_signature}");
         }
         for _ in 0..3 {
             let push_data_ix = Instruction::new_with_borsh(
@@ -191,7 +193,7 @@ async fn main() -> client::Result<()> {
                 client.get_latest_blockhash().await?,
             );
             let push_signature = client.send_and_confirm_transaction(&push_data_tx).await?;
-            println!("pushed zero value signature: {}", push_signature);
+            println!("pushed zero value signature: {push_signature}");
         }
     }
 
@@ -211,7 +213,7 @@ async fn main() -> client::Result<()> {
     );
 
     let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nHash Public Inputs task pushed: {}", push_signature);
+    println!("\nHash Public Inputs task pushed: {push_signature}");
 
     let mut steps = 0;
     loop {
@@ -240,7 +242,7 @@ async fn main() -> client::Result<()> {
             .map_err(ClientError::SolanaClientError)?;
         let stack = BidirectionalStackAccount::cast(&account_data);
         if stack.is_empty_back() {
-            println!("\nExecution complete after {} steps", steps);
+            println!("\nExecution complete after {steps} steps");
             break;
         }
     }
@@ -255,8 +257,8 @@ async fn main() -> client::Result<()> {
     stack.pop_front();
     let result_output_hash = Felt::from_bytes_be_slice(stack.borrow_front());
     stack.pop_front();
-    println!("\nProgram Hash: {:?}", result_program_hash);
-    println!("Output Hash: {:?}", result_output_hash);
+    println!("\nProgram Hash: {result_program_hash:?}");
+    println!("Output Hash: {result_output_hash:?}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
 

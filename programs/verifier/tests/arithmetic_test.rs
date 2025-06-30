@@ -62,7 +62,7 @@ fn test_fibonacci_operation() {
 fn test_increment_operation() {
     let mut stack = BidirectionalStackAccount::default();
     stack.push_data(&1u128.to_be_bytes());
-    for i in 0..9 {
+    for _ in 0..9 {
         stack.push_task(increment::Increment::new());
     }
     while !stack.is_empty_back() {

@@ -12,6 +12,7 @@ use utils::AccountCast;
 
 /// Main entry point for the Solana program client
 #[tokio::main]
+#[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
     // Parse command-line arguments
     let config = Config::parse_args();
@@ -30,7 +31,7 @@ async fn main() -> client::Result<()> {
 
     // Setup greeting account
     let space = size_of::<GreetingAccount>();
-    println!("Greeting account space: {}", space);
+    println!("Greeting account space: {space}");
     let greeting_account = setup_account(
         &client,
         &payer,

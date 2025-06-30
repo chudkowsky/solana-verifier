@@ -1,5 +1,5 @@
-use stark::stark_proof::{HashPublicInputs, VerifyPublicInput};
-use stark::{felt::Felt, poseidon::PoseidonHashMany};
+use stark::felt::Felt;
+use stark::stark_proof::VerifyPublicInput;
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
 use utils::{BidirectionalStack, Scheduler};
 use verifier::state::BidirectionalStackAccount;
@@ -12,7 +12,7 @@ fn hash_public_inputs_basic() {
     let proof_json = serde_json::from_str::<json_parser::StarkProof>(input).unwrap();
     let proof = StarkProofParser::try_from(proof_json).unwrap();
 
-    let mut proof_verifier = proof.transform_to();
+    let proof_verifier = proof.transform_to();
 
     stack.proof = proof_verifier;
 
@@ -24,8 +24,8 @@ fn hash_public_inputs_basic() {
     stack.pop_front();
     let result_output_hash = Felt::from_bytes_be_slice(stack.borrow_front());
     stack.pop_front();
-    println!("Result program hash: {:?}", result_program_hash);
-    println!("Result output hash: {:?}", result_output_hash);
+    println!("Result program hash: {result_program_hash:?}");
+    println!("Result output hash: {result_output_hash:?}");
     assert_eq!(
         result_program_hash,
         Felt::from_hex("0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07").unwrap()
