@@ -20,11 +20,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+        
       - name: Run tests
         run: cargo test --all --verbose 
   fmt:
@@ -49,6 +53,8 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - name: Build
         run: cargo build --all --release
   clippy:
@@ -61,5 +67,7 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - name: Run clippy
         run: cargo clippy --all --release -- -D warnings
