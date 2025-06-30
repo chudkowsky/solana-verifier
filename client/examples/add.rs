@@ -115,13 +115,16 @@ async fn main() -> client::Result<()> {
     println!("\nTask pushed: {push_signature}");
 
     // Check stack state after pushing
-    let account_data_after_push = client
+    let mut account_data_after_push = client
         .get_account_data(&stack_account.pubkey())
         .await
         .map_err(ClientError::SolanaClientError)?;
-    let stack_after_push = BidirectionalStackAccount::cast(&account_data_after_push);
+    let stack_after_push: &mut BidirectionalStackAccount =
+        BidirectionalStackAccount::cast_mut(&mut account_data_after_push);
     println!("Stack front index: {}", stack_after_push.front_index);
     println!("Stack back index: {}", stack_after_push.back_index);
+    let simulation_steps = stack_after_push.simulate();
+    println!("Steps in simulation: {simulation_steps}");
 
     let mut steps = 0;
     loop {
@@ -155,10 +158,10 @@ async fn main() -> client::Result<()> {
         println!("Stack front index: {}", stack.front_index);
         println!("Stack back index: {}", stack.back_index);
         println!("Executed task, is empty: {}", stack.is_empty_back());
+        steps += 1;
         if stack.is_empty_back() {
             break;
         }
-        steps += 1;
     }
 
     // Read and display the result
@@ -170,7 +173,7 @@ async fn main() -> client::Result<()> {
     let result_bytes = stack.borrow_front();
     let result = u128::from_be_bytes(result_bytes.try_into().unwrap());
     println!("\nAdd result (48 + 52): {result}");
-
+    assert_eq!(simulation_steps, steps);
     println!("\nArithmetic operation successfully executed on Solana!");
 
     Ok(())

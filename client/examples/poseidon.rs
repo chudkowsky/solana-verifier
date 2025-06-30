@@ -177,6 +177,14 @@ async fn main() -> client::Result<()> {
     let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
     println!("\nPoseidon hash task pushed: {push_signature}");
 
+    let mut account_data = client
+        .get_account_data(&stack_account.pubkey())
+        .await
+        .map_err(ClientError::SolanaClientError)?;
+
+    let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
+    let simulation_steps = stack.simulate();
+    println!("Steps in simulation: {simulation_steps}");
     // Execute until task is complete
     let mut steps = 0;
     loop {
@@ -224,7 +232,7 @@ async fn main() -> client::Result<()> {
     println!("\nPoseidon hash result: {result}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
-
+    assert_eq!(simulation_steps, steps);
     // The expected output should match the result we got (from the test for 3 inputs)
     let expected_result =
         Felt::from_hex("0x26e3ad8b876e02bc8a4fc43dad40a8f81a6384083cabffa190bcf40d512ae1d")
