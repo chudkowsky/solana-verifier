@@ -1,11 +1,9 @@
-use std::{
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::path::Path;
 
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
-use futures::future::join_all;
-use solana_client::nonblocking::rpc_client::RpcClient;
+use client::{
+    initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
+    setup_payer, setup_program, ClientError, Config,
+};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
@@ -20,7 +18,6 @@ use stark::{
     swiftness::stark::types::{cast_struct_to_slice, StarkProof},
 };
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
-use tokio::time::sleep;
 use utils::AccountCast;
 use utils::BidirectionalStack;
 use utils::Executable;
@@ -72,12 +69,14 @@ async fn main() -> client::Result<()> {
     let signature = client
         .send_and_confirm_transaction(&create_account_tx)
         .await?;
+    println!("Account created successfully: {signature}");
+    println!("\nSet Proof on Solana");
+    println!("====================");
 
     let mut input: [u64; 2] = [0, 65536];
     let proof_bytes = cast_struct_to_slice(&mut input);
     let new_offset = proof_bytes.len();
-    println!("Proof bytes in kb: {:?}", proof_bytes.len() / 1024);
-    let instructions = proof_bytes
+    let stack_set_instructions = proof_bytes
         .chunks(CHUNK_SIZE)
         .enumerate()
         .map(|(i, chunk)| {
@@ -89,22 +88,6 @@ async fn main() -> client::Result<()> {
         })
         .collect::<Vec<_>>();
 
-    println!("Instructions number: {:?}", instructions.len());
-    for (i, instruction) in instructions.iter().enumerate() {
-        let set_proof_tx = Transaction::new_signed_with_payer(
-            &[instruction.clone()],
-            Some(&payer.pubkey()),
-            &[&payer],
-            client.get_latest_blockhash().await?,
-        );
-        let set_proof_signature: solana_sdk::signature::Signature =
-            client.send_and_confirm_transaction(&set_proof_tx).await?;
-        println!("Set proof: {i}: {set_proof_signature}");
-    }
-
-    println!("Account created successfully: {signature}");
-    println!("\nSet Proof on Solana");
-    println!("====================");
     let input = include_str!("../../example_proof/saya.json");
     let proof_json = serde_json::from_str::<json_parser::StarkProof>(input).unwrap();
     let proof = StarkProofParser::try_from(proof_json).unwrap();
@@ -112,7 +95,7 @@ async fn main() -> client::Result<()> {
 
     let proof_bytes = cast_struct_to_slice(&mut proof_verifier);
     println!("Proof bytes in kb: {:?}", proof_bytes.len() / 1024);
-    let instructions = proof_bytes
+    let mut instructions = proof_bytes
         .chunks(CHUNK_SIZE)
         .enumerate()
         .map(|(i, chunk)| {
@@ -123,29 +106,20 @@ async fn main() -> client::Result<()> {
             )
         })
         .collect::<Vec<_>>();
+    instructions.extend(stack_set_instructions);
 
-    println!("Instructions number: {instructions:?}");
+    println!("Instructions count: {:?}", instructions.len());
     let mut transactions = Vec::new();
-    for (i, instruction) in instructions.iter().enumerate() {
+    for instruction in instructions.iter() {
         let set_proof_tx = Transaction::new_signed_with_payer(
             &[instruction.clone()],
             Some(&payer.pubkey()),
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-        let set_proof_signature: solana_sdk::signature::Signature =
-            client.send_transaction(&set_proof_tx).await?;
-        println!("Set proof: {i}: {set_proof_signature}");
-        transactions.push(set_proof_signature);
+        transactions.push(set_proof_tx.clone());
     }
-
-    wait_for_all_confirmations(
-        &client,
-        &transactions,
-        Duration::from_millis(10), // poll every 10ms
-        Duration::from_secs(120),  // timeout after 2 minutes
-    )
-    .await;
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     let task = VerifyPublicInput::new();
 
@@ -155,17 +129,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let verify_public_input_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[verify_public_input_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-    let verify_public_input_signature: solana_sdk::signature::Signature = client
-        .send_and_confirm_transaction(&verify_public_input_tx)
-        .await?;
-
-    println!("Verify public input: {verify_public_input_signature:?}");
+    )
+    .await?;
+    println!("Verify public input: {signature}");
 
     let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);
 
@@ -193,27 +165,9 @@ async fn main() -> client::Result<()> {
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-        let execute_signature = client.send_transaction(&execute_tx).await?;
-        transactions.push(execute_signature);
-        println!("execute signature: {execute_signature:?}");
-        println!("i: {i}");
+        transactions.push(execute_tx.clone());
     }
-
-    let results = wait_for_all_confirmations(
-        &client,
-        &transactions,
-        Duration::from_millis(10), // poll every 50ms
-        Duration::from_secs(120),  // timeout after 2 minutes
-    )
-    .await;
-
-    for (transaction, confirmed) in results {
-        if confirmed {
-            println!("Transaction confirmed: {transaction:?}");
-        } else {
-            println!("Transaction NOT confirmed (timeout): {transaction:?}");
-        }
-    }
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     // Read and display the result
     let mut account_data = client
@@ -233,41 +187,4 @@ async fn main() -> client::Result<()> {
     println!("\nHash Public Inputs successfully executed on Solana!");
 
     Ok(())
-}
-
-async fn wait_for_all_confirmations(
-    client: &RpcClient,
-    transactions: &[solana_sdk::signature::Signature],
-    poll_interval: Duration,
-    timeout: Duration,
-) -> Vec<(solana_sdk::signature::Signature, bool)> {
-    let start = Instant::now();
-    let mut pending: Vec<_> = transactions.to_vec();
-    let mut results = Vec::new();
-
-    while !pending.is_empty() && start.elapsed() < timeout {
-        let futures = pending.iter().map(|tx| {
-            let client = client;
-            async move {
-                let confirmed = client.confirm_transaction(tx).await.unwrap_or(false);
-                (tx.clone(), confirmed)
-            }
-        });
-        let statuses = join_all(futures).await;
-
-        // Retain unconfirmed, collect confirmed
-        pending = statuses
-            .iter()
-            .filter_map(|(tx, confirmed)| if !confirmed { Some(tx.clone()) } else { None })
-            .collect();
-        results.extend(statuses.into_iter().filter(|(_, c)| *c));
-
-        if !pending.is_empty() {
-            sleep(poll_interval).await;
-        }
-    }
-
-    // Mark any still-pending as not confirmed
-    results.extend(pending.into_iter().map(|tx| (tx, false)));
-    results
 }

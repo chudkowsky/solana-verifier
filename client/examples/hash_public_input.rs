@@ -1,6 +1,9 @@
-use std::{path::Path, time::Duration};
+use std::path::Path;
 
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{
+    initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
+    setup_payer, setup_program, ClientError, Config,
+};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
@@ -65,16 +68,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    // Send initialize transaction
-    let init_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {init_signature}");
+    )
+    .await?;
+    println!("Account initialized: {signature}");
 
     let account_data_after_init = client
         .get_account_data(&stack_account.pubkey())
@@ -205,21 +207,23 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let push_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[push_task_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
+    )
+    .await?;
+    println!("\nHash Public Inputs task pushed: {signature}");
 
-    let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nHash Public Inputs task pushed: {push_signature}");
     let mut account_data = client
         .get_account_data(&stack_account.pubkey())
         .await
         .map_err(ClientError::SolanaClientError)?;
     let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
     let simulation_steps = stack.simulate();
+    let mut transactions = Vec::new();
     for i in 0..simulation_steps {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
@@ -234,13 +238,9 @@ async fn main() -> client::Result<()> {
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-
-        let execute_signature = client.send_transaction(&execute_tx).await?;
-        println!("execute signature: {execute_signature}");
-        println!("i: {i}");
+        transactions.push(execute_tx.clone());
     }
-
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     // Read and display the result
     let mut account_data = client

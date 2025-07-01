@@ -1,4 +1,7 @@
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{
+    initialize_client, send_and_confirm_transactions, setup_payer, setup_program, ClientError,
+    Config,
+};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
@@ -88,17 +91,17 @@ async fn main() -> client::Result<()> {
         .collect::<Vec<_>>();
 
     println!("Instructions number: {:?}", instructions.len());
-    for (i, instruction) in instructions.iter().enumerate() {
+    let mut transactions = Vec::new();
+    for instruction in instructions.iter() {
         let set_proof_tx = Transaction::new_signed_with_payer(
             &[instruction.clone()],
             Some(&payer.pubkey()),
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-        let set_proof_signature: solana_sdk::signature::Signature =
-            client.send_transaction(&set_proof_tx).await?;
-        println!("Set proof: {i}: {set_proof_signature}");
+        transactions.push(set_proof_tx.clone());
     }
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     let account_data_after_set_proof = client
         .get_account_data(&stack_account.pubkey())

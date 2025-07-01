@@ -1,4 +1,7 @@
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{
+    initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
+    setup_payer, setup_program, ClientError, Config,
+};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
@@ -72,15 +75,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    // Send initialize transaction
-    let init_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-    let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {init_signature}");
+    )
+    .await?;
+    println!("Account initialized: {signature}");
 
     let account_data_after_init = client
         .get_account_data(&stack_account.pubkey())
@@ -167,15 +170,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let push_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[push_task_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nPoseidon hash task pushed: {push_signature}");
+    )
+    .await?;
+    println!("\nPoseidon hash task pushed: {signature}");
 
     let mut account_data = client
         .get_account_data(&stack_account.pubkey())
@@ -186,38 +189,22 @@ async fn main() -> client::Result<()> {
     let simulation_steps = stack.simulate();
     println!("Steps in simulation: {simulation_steps}");
     // Execute until task is complete
-    let mut steps = 0;
-    loop {
-        // Execute the task
+    let mut transactions = Vec::new();
+    for i in 0..simulation_steps {
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute(steps as u32),
+            &VerifierInstruction::Execute(i as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
-
         let execute_tx = Transaction::new_signed_with_payer(
             &[execute_ix],
             Some(&payer.pubkey()),
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-
-        let _execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
-        println!(".");
-        steps += 1;
-
-        // Check stack state
-        let account_data = client
-            .get_account_data(&stack_account.pubkey())
-            .await
-            .map_err(ClientError::SolanaClientError)?;
-        let stack = BidirectionalStackAccount::cast(&account_data);
-        if stack.is_empty_back() {
-            println!("\nExecution complete after {steps} steps");
-            break;
-        }
+        transactions.push(execute_tx.clone());
     }
-
+    send_and_confirm_transactions(&client, &transactions).await?;
     // Read and display the result
     let mut account_data = client
         .get_account_data(&stack_account.pubkey())
@@ -232,7 +219,6 @@ async fn main() -> client::Result<()> {
     println!("\nPoseidon hash result: {result}");
     println!("Stack front index: {}", stack.front_index);
     println!("Stack back index: {}", stack.back_index);
-    assert_eq!(simulation_steps, steps);
     // The expected output should match the result we got (from the test for 3 inputs)
     let expected_result =
         Felt::from_hex("0x26e3ad8b876e02bc8a4fc43dad40a8f81a6384083cabffa190bcf40d512ae1d")
