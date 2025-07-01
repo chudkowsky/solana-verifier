@@ -15,30 +15,6 @@ on:
       - 'Cargo.lock'
 
 jobs:
-  # e2e-test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-        
-  #     - name: Set up Rust
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #         override: true
-  #     - name: Install dependencies
-  #       run: sudo apt-get update && sudo apt-get install -y libudev-dev clang llvm pkg-config
-  
-  #     - name: Install Solana and start validator in background
-  #       run: |
-  #           sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-  #           echo 'export PATH="/root/.local/share/solana/install/active_release/bin:$PATH"' >> $GITHUB_ENV
-  #           export PATH="/root/.local/share/solana/install/active_release/bin:$PATH"
-  #           nohup solana-test-validator > validator.log 2>&1 &
-  #           sleep 5
-  #           cargo build-sbf
-  #           cargo run --example full_flow
-
   fmt:
     runs-on: ubuntu-latest
     steps:
