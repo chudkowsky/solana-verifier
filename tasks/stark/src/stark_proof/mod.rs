@@ -6,6 +6,12 @@ use crate::{
     swiftness::stark::types::{cast_slice_to_struct, StarkProof},
 };
 
+// Constants for validation
+pub const MAX_LOG_N_STEPS: Felt = Felt::from_hex_unchecked("0x50");
+pub const MAX_RANGE_CHECK: Felt = Felt::from_hex_unchecked("0xffff");
+pub const MAX_ADDRESS: usize = 0xffffffffffffffff;
+pub const INITIAL_PC: usize = 1;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashPublicInputsStep {
     Init,
@@ -146,6 +152,23 @@ impl Executable for VerifyPublicInput {
                     .begin_addr
                     .try_into()
                     .unwrap();
+                let final_ap: usize = public_segments
+                    .get(segments::EXECUTION)
+                    .unwrap()
+                    .stop_ptr
+                    .try_into()
+                    .unwrap();
+
+                assert!(
+                    initial_fp < MAX_ADDRESS,
+                    "Initial AP exceeds maximum address"
+                );
+                assert!(final_ap < MAX_ADDRESS, "Final AP exceeds maximum address");
+                assert!(
+                    proof.public_input.continuous_page_headers.is_empty(),
+                    "Continuous page headers are not empty"
+                );
+                assert!(initial_pc == INITIAL_PC, "Wrong initial PC");
 
                 //1. Program segment
                 let program_end_pc: usize = initial_fp - 2;

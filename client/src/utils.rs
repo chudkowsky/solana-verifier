@@ -163,13 +163,6 @@ pub async fn setup_program(
     program_path: &Path,
 ) -> Result<solana_sdk::pubkey::Pubkey> {
     // Read the program binary
-    if !program_path.exists() {
-        return Err(ClientError::ProgramNotFound(
-            format!("Program binary not found at {}. Please build the program first with 'cargo build-sbf' in the program directory.", 
-                program_path.display()
-            )
-        ));
-    }
 
     let program_data = fs::read(program_path).map_err(ClientError::IoError)?;
     println!("Program binary size: {} bytes", program_data.len());
