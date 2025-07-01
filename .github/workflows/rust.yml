@@ -57,6 +57,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - name: Build
         run: cargo build --all --release
+      - name: Install solana and build program
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          export PATH="/root/.local/share/solana/install/active_release/bin:$PATH"
+          cargo build-sbf
   clippy:
     runs-on: ubuntu-latest
     steps:
