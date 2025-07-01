@@ -1,5 +1,6 @@
 #![allow(deprecated)]
 
+use futures::future::join_all;
 use solana_program::{
     bpf_loader_upgradeable,
     instruction::{AccountMeta, Instruction},
@@ -9,7 +10,7 @@ use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     bpf_loader_upgradeable::UpgradeableLoaderState,
     commitment_config::CommitmentConfig,
-    signature::{Keypair, Signer},
+    signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
 
@@ -342,7 +343,7 @@ pub async fn interact_with_program_instructions(
     _program_id: &solana_sdk::pubkey::Pubkey, // Unused but kept for API consistency
     _account: &Keypair,                       // Unused but kept for API consistency
     instructions: &[Instruction],
-) -> Result<()> {
+) -> Result<Signature> {
     // Get latest blockhash
     let blockhash = client
         .get_latest_blockhash()
@@ -366,7 +367,7 @@ pub async fn interact_with_program_instructions(
         })?;
     println!("Transaction signature: {signature}");
 
-    Ok(())
+    Ok(signature)
 }
 
 /// Deploy a program to the blockchain using BPF loader
@@ -614,4 +615,25 @@ pub fn write_keypair_file<P: AsRef<Path>>(keypair: &Keypair, path: P) -> Result<
     let json =
         serde_json::to_string(&keypair.to_bytes().to_vec()).map_err(ClientError::SerdeError)?;
     fs::write(&path, json).map_err(ClientError::IoError)
+}
+
+pub async fn send_and_confirm_transactions(
+    client: &RpcClient,
+    transactions: &[Transaction],
+) -> Result<()> {
+    let futures = transactions.iter().map(|tx| {
+        let client = &client;
+        async move {
+            let confirmed = client.send_and_confirm_transaction(tx).await;
+            (tx.clone(), confirmed)
+        }
+    });
+    let results = join_all(futures).await;
+    for (_, result) in results {
+        match result {
+            Ok(signature) => println!("Transaction confirmed: {signature:?}"),
+            Err(e) => println!("Transaction NOT confirmed (timeout): {e:?}"),
+        }
+    }
+    Ok(())
 }

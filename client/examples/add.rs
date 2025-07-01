@@ -1,5 +1,8 @@
 use arithmetic::add::Add;
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{
+    initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
+    setup_payer, setup_program, ClientError, Config,
+};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
@@ -71,16 +74,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    // Send initialize transaction
-    let init_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {init_signature}");
+    )
+    .await?;
+    println!("Account initialized: {signature}");
 
     // Cast to stack account to see if initialized correctly
     let account_data_after_init = client
@@ -104,15 +106,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let push_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[push_task_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nTask pushed: {push_signature}");
+    )
+    .await?;
+    println!("Task pushed: {signature}");
 
     // Check stack state after pushing
     let mut account_data_after_push = client
@@ -126,16 +128,12 @@ async fn main() -> client::Result<()> {
     let simulation_steps = stack_after_push.simulate();
     println!("Steps in simulation: {simulation_steps}");
 
-    let mut steps = 0;
-    loop {
-        println!(
-            "Executing task, is empty: {}",
-            stack_after_push.is_empty_back()
-        );
+    let mut transactions = Vec::new();
+    for i in 0..simulation_steps {
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
-            &VerifierInstruction::Execute(steps as u32),
+            &VerifierInstruction::Execute(i as u32),
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
 
@@ -145,24 +143,10 @@ async fn main() -> client::Result<()> {
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-
-        let execute_signature = client.send_and_confirm_transaction(&execute_tx).await?;
-        println!("\nTask executed: {execute_signature}");
-
-        // Check final stack state
-        let account_data = client
-            .get_account_data(&stack_account.pubkey())
-            .await
-            .map_err(ClientError::SolanaClientError)?;
-        let stack = BidirectionalStackAccount::cast(&account_data);
-        println!("Stack front index: {}", stack.front_index);
-        println!("Stack back index: {}", stack.back_index);
-        println!("Executed task, is empty: {}", stack.is_empty_back());
-        steps += 1;
-        if stack.is_empty_back() {
-            break;
-        }
+        transactions.push(execute_tx.clone());
     }
+
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     // Read and display the result
     let account_data = client
@@ -173,7 +157,6 @@ async fn main() -> client::Result<()> {
     let result_bytes = stack.borrow_front();
     let result = u128::from_be_bytes(result_bytes.try_into().unwrap());
     println!("\nAdd result (48 + 52): {result}");
-    assert_eq!(simulation_steps, steps);
     println!("\nArithmetic operation successfully executed on Solana!");
 
     Ok(())

@@ -1,5 +1,8 @@
 use arithmetic::exp::Exp;
-use client::{initialize_client, setup_payer, setup_program, ClientError, Config};
+use client::{
+    initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
+    setup_payer, setup_program, ClientError, Config,
+};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
@@ -7,7 +10,7 @@ use solana_sdk::{
 };
 use solana_system_interface::instruction::create_account;
 use stark::swiftness::stark::types::cast_struct_to_slice;
-use std::{mem::size_of, path::Path, time::Duration};
+use std::{mem::size_of, path::Path};
 use utils::{AccountCast, BidirectionalStack, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
 
@@ -72,16 +75,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    // Send initialize transaction
-    let init_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[init_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let init_signature = client.send_and_confirm_transaction(&init_tx).await?;
-    println!("Account initialized: {init_signature}");
+    )
+    .await?;
+    println!("Account initialized: {signature}");
 
     // Cast to stack account to see if initialized correctly
     let account_data_after_init = client
@@ -109,15 +111,15 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let push_tx = Transaction::new_signed_with_payer(
+    let signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
         &[push_task_ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        client.get_latest_blockhash().await?,
-    );
-
-    let push_signature = client.send_and_confirm_transaction(&push_tx).await?;
-    println!("\nTask pushed: {push_signature}");
+    )
+    .await?;
+    println!("\nTask pushed: {signature}");
 
     // Check stack state after pushing
     let account_data_after_push = client
@@ -135,11 +137,9 @@ async fn main() -> client::Result<()> {
     let stack = BidirectionalStackAccount::cast_mut(&mut account_data);
     let simulation_steps = stack.simulate();
     println!("Simulation steps: {simulation_steps}");
+
+    let mut transactions = Vec::new();
     for i in 0..simulation_steps {
-        println!(
-            "Executing task, is empty: {}",
-            stack_after_push.is_empty_back()
-        );
         // Execute the task
         let execute_ix = Instruction::new_with_borsh(
             program_id,
@@ -153,11 +153,10 @@ async fn main() -> client::Result<()> {
             &[&payer],
             client.get_latest_blockhash().await?,
         );
-
-        let execute_signature = client.send_transaction(&execute_tx).await?;
-        println!("execute signature: {execute_signature}");
+        transactions.push(execute_tx.clone());
     }
-    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    send_and_confirm_transactions(&client, &transactions).await?;
 
     // Read and display the result
     let account_data = client
@@ -167,8 +166,8 @@ async fn main() -> client::Result<()> {
     let stack = BidirectionalStackAccount::cast(&account_data);
     let result_bytes = stack.borrow_front();
     let result = u128::from_be_bytes(result_bytes.try_into().unwrap());
-    println!("\nExp result ({base}^{exponent}): {result}");
 
+    println!("\nExp result ({base}^{exponent}): {result}");
     println!("\nArithmetic operation successfully executed on Solana!");
 
     Ok(())
