@@ -1,51 +1,51 @@
 {
-  description = "Example Rust development environment for Zero to Nix";
+  description = "A Nix-flake-based Rust development environment";
 
-  # Flake inputs
   inputs = {
-    # Latest stable Nixpkgs
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/*";
-    # A helper library for Rust + Nix
-    rust-overlay.url = "https://flakehub.com/f/oxalica/rust-overlay/*";
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
+    fenix = {
+      url = "https://flakehub.com/f/nix-community/fenix/0.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  # Flake outputs
-  outputs = { self, nixpkgs, rust-overlay }:
+  outputs = inputs:
     let
-      # Overlays enable you to customize the Nixpkgs attribute set
-      overlays = [
-        # Makes a `rust-bin` attribute available in Nixpkgs
-        (import rust-overlay)
-        # Provides a `rustToolchain` attribute for Nixpkgs that we can use to
-        # create a Rust environment
-        (final: prev: {
-          rustToolchain = prev.rust-bin.stable.latest.default;
-        })
-      ];
-
-      # Systems supported
-      allSystems = [
-        "x86_64-linux" # 64-bit Intel/AMD Linux
-        "aarch64-linux" # 64-bit ARM Linux
-        "x86_64-darwin" # 64-bit Intel macOS
-        "aarch64-darwin" # 64-bit ARM macOS
-      ];
-
-      # Helper to provide system-specific attributes
-      forAllSystems = f: nixpkgs.lib.genAttrs allSystems (system: f {
-        pkgs = import nixpkgs { inherit overlays system; };
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      forEachSupportedSystem = f: inputs.nixpkgs.lib.genAttrs supportedSystems (system: f {
+        pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [
+            inputs.self.overlays.default
+          ];
+        };
       });
     in
     {
-      # Development environment output
-      devShells = forAllSystems ({ pkgs }: {
+      overlays.default = final: prev: {
+        rustToolchain = inputs.fenix.packages.${prev.stdenv.hostPlatform.system}.fromToolchainFile
+          {
+            file = ./rust-toolchain.toml;
+            sha256 = "sha256-KUm16pHj+cRedf8vxs/Hd2YWxpOrWZ7UOrwhILdSJBU=";
+          };
+      };
+
+      devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
-          # The Nix packages provided in the environment
-          packages = (with pkgs; [
-            # The package provided by our custom overlay. Includes cargo, Clippy, cargo-fmt,
-            # rustdoc, rustfmt, and other tools.
+          packages = with pkgs; [
             rustToolchain
-          ]) ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs; [ libiconv ]);
+            openssl
+            pkg-config
+            cargo-deny
+            cargo-edit
+            cargo-watch
+            rust-analyzer
+          ];
+
+          env = {
+            # Required by rust-analyzer
+            RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+          };
         };
       });
     };
