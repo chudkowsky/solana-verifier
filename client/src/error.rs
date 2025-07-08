@@ -1,5 +1,5 @@
 use thiserror::Error;
-
+// test
 /// Custom error types for the Solana client application
 #[derive(Error, Debug)]
 #[allow(clippy::large_enum_variant)]
