@@ -11,11 +11,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
       - name: Check formatting
         run: cargo fmt --all -- --check
   build:
@@ -69,5 +64,29 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libudev-dev
       - name: Run tests
         run: cargo test --all --release
-
+  e2e_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Install system dependencies
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y libudev-dev build-essential pkg-config llvm libclang-dev protobuf-compiler libssl-dev
   
+      - name: Install Solana CLI
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+      - name: Compile Solana
+        run: cargo build-sbf      
+      - name: Run solana-test-validator
+        run: | 
+          solana-test-validator &
+          sleep 10 &
+          cargo run --example full_flow 
