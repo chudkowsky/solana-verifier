@@ -181,10 +181,23 @@ async fn main() -> client::Result<()> {
     stack.pop_front();
 
     println!("\nProgram Hash: {result_program_hash:?}");
+    assert_eq!(
+        result_program_hash,
+        Felt::from_hex_unchecked(
+            "0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07"
+        )
+    );
     println!("Output Hash: {result_output_hash:?}");
+    assert_eq!(
+        result_output_hash,
+        Felt::from_hex_unchecked(
+            "0x3233b5615a8de5563f7d3ba086b8f260189ac47753a1c131d063ed3f6c24400"
+        )
+    );
     println!("Stack front index: {}", stack.front_index);
+    assert_eq!(stack.front_index, 0);
     println!("Stack back index: {}", stack.back_index);
+    assert_eq!(stack.back_index, 65536);
     println!("\nHash Public Inputs successfully executed on Solana!");
-
     Ok(())
 }
