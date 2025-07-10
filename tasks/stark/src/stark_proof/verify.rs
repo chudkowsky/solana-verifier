@@ -3,7 +3,7 @@ use utils::{impl_type_identifiable, BidirectionalStack, Executable, TypeIdentifi
 use crate::stark_proof::stark_commit::StarkCommit;
 use crate::stark_proof::stark_verify::StarkVerify;
 use crate::stark_proof::validate_public_input::ValidatePublicInput;
-use crate::stark_proof::verify_public_input::VerifyPublicInput;
+use crate::stark_proof::VerifyPublicInput;
 use crate::{felt::Felt, stark_proof::get_hash::GetHash};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
