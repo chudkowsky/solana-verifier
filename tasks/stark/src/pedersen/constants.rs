@@ -1,4 +1,3 @@
-#![allow(clippy::large_const_arrays)]
 use lambdaworks_math::elliptic_curve::short_weierstrass::{
     curves::stark_curve::StarkCurve, point::ShortWeierstrassProjectivePoint,
 };
@@ -16,7 +15,7 @@ pub const SHIFT_POINT: ShortWeierstrassProjectivePoint<StarkCurve> =
         "0x03ca0cfe4b3bc6ddf346d49d06ea0ed34e621062c0e056c1d0405d266e10268a",
     );
 
-pub const POINTS_P1: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
+pub static POINTS_P1: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
     StarkCurve::from_affine_hex_string(
         "0x0234287dcbaffe7f969c748655fca9e58fa8120b6d56eb0c1080d17957ebe47b",
         "0x03b056f100f96fb21e889527d41f4e39940135dd7a6c94cc6ed0268ee89e5615",
@@ -3739,7 +3738,7 @@ pub const POINTS_P1: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
     ),
 ];
 
-pub const POINTS_P2: [ShortWeierstrassProjectivePoint<StarkCurve>; 15] = [
+pub static POINTS_P2: [ShortWeierstrassProjectivePoint<StarkCurve>; 15] = [
     StarkCurve::from_affine_hex_string(
         "0x04fa56f376c83db33f9dab2656558f3399099ec1de5e3018b7a6932dba8aa378",
         "0x03fa0984c931c9e38113e0c0e47e4401562761f92a7a23b45168f4e80ff5b54d",
@@ -3802,7 +3801,7 @@ pub const POINTS_P2: [ShortWeierstrassProjectivePoint<StarkCurve>; 15] = [
     ),
 ];
 
-pub const POINTS_P3: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
+pub static POINTS_P3: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
     StarkCurve::from_affine_hex_string(
         "0x04ba4cc166be8dec764910f75b45f74b40c690c74709e90f3aa372f0bd2d6997",
         "0x0040301cf5c1751f4b971e46c4ede85fcac5c59a5ce5ae7c48151f27b24b219c",
@@ -7525,7 +7524,7 @@ pub const POINTS_P3: [ShortWeierstrassProjectivePoint<StarkCurve>; 930] = [
     ),
 ];
 
-pub const POINTS_P4: [ShortWeierstrassProjectivePoint<StarkCurve>; 15] = [
+pub static POINTS_P4: [ShortWeierstrassProjectivePoint<StarkCurve>; 15] = [
     StarkCurve::from_affine_hex_string(
         "0x054302dcb0e6cc1c6e44cca8f61a63bb2ca65048d53fb325d36ff12c49a58202",
         "0x01b77b3e37d13504b348046268d8ae25ce98ad783c25561a879dcc77e99c2426",

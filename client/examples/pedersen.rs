@@ -2,8 +2,6 @@ use client::{
     initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
     setup_payer, setup_program, ClientError, Config,
 };
-use env_logger;
-use log;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
@@ -21,11 +19,6 @@ use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccoun
 #[tokio::main]
 #[allow(clippy::result_large_err)]
 async fn main() -> client::Result<()> {
-    // Initialize logger to show warnings and errors
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
-        .init();
-
     // Parse command-line arguments
     let config = Config::parse_args();
 

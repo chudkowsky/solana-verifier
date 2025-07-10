@@ -199,7 +199,7 @@ impl Executable for LookupAndAccumulate {
                 let bits = &self.bits[..self.bits_len];
                 let start_chunk = self.chunk_index;
 
-                // Functional approach
+                #[allow(clippy::double_ended_iterator_last)]
                 let processed = bits
                     .chunks(PedersenHash::CURVE_CONST_BITS)
                     .enumerate()
@@ -214,7 +214,7 @@ impl Executable for LookupAndAccumulate {
                         }
                         i + 1 // Return next index
                     })
-                    .next_back()
+                    .last()
                     .unwrap_or(start_chunk);
 
                 self.chunk_index = processed;
