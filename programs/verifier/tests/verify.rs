@@ -1,4 +1,3 @@
-use stark::felt::Felt;
 use stark::stark_proof::verify::Verify;
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
 use utils::{BidirectionalStack, Scheduler};

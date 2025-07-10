@@ -76,7 +76,6 @@ impl Executable for GetHash {
                 // Use PoseidonHashMany::push_input to properly prepare the stack
                 PoseidonHashMany::push_input(&main_page_data, stack);
 
-                println!("GetHashStep::HashData");
                 self.step = GetHashStep::MainPageHash;
                 vec![PoseidonHashMany::new(main_page_data.len()).to_vec_with_type_tag()]
             }
@@ -139,9 +138,9 @@ impl Executable for GetHash {
                 vec![PoseidonHashMany::new(self.hash_data.len()).to_vec_with_type_tag()]
             }
             GetHashStep::Program => {
-                let bytes = stack.borrow_front();
-                let get_hash_result = Felt::from_bytes_be_slice(bytes);
-                println!("get_hash_result: {:?}", get_hash_result);
+                // let bytes = stack.borrow_front();
+                // let get_hash_result = Felt::from_bytes_be_slice(bytes);
+                // println!("get_hash_result: {:?}", get_hash_result);
 
                 self.step = GetHashStep::Done;
                 vec![]
