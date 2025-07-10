@@ -27,6 +27,12 @@ pub enum PerdersenPhase {
 
 impl_type_identifiable!(PedersenHash);
 
+impl Default for PedersenHash {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PedersenHash {
     pub fn new() -> Self {
         Self {
@@ -38,7 +44,7 @@ impl PedersenHash {
     }
 
     /// Helper function to push inputs to stack and create task
-    pub fn push_input<T: BidirectionalStack>(x: Felt, y: Felt, stack: &mut T) -> () {
+    pub fn push_input<T: BidirectionalStack>(x: Felt, y: Felt, stack: &mut T) {
         // Push the inputs to the stack
         stack.push_front(&x.to_bytes_be()).unwrap();
         stack.push_front(&y.to_bytes_be()).unwrap();
@@ -208,13 +214,12 @@ impl Executable for LookupAndAccumulate {
                         }
                         i + 1 // Return next index
                     })
-                    .last()
+                    .next_back()
                     .unwrap_or(start_chunk);
 
                 self.chunk_index = processed;
 
-                let total_chunks = (bits.len() + PedersenHash::CURVE_CONST_BITS - 1)
-                    / PedersenHash::CURVE_CONST_BITS;
+                let total_chunks = bits.len().div_ceil(PedersenHash::CURVE_CONST_BITS);
                 if self.chunk_index >= total_chunks {
                     // Save and finish
                     stack.push_front(&self.acc.x().to_bytes_be()).unwrap();
