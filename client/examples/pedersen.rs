@@ -4,6 +4,7 @@ use client::{
 };
 use env_logger;
 use log;
+use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::{Keypair, Signer},
@@ -179,6 +180,8 @@ async fn main() -> client::Result<()> {
     let simulation_steps = stack.simulate();
     println!("Steps in simulation: {simulation_steps}");
 
+    let limit_instructions = ComputeBudgetInstruction::set_compute_unit_limit(800_000);
+
     // Execute until task is complete
     let mut transactions = Vec::new();
     for i in 0..simulation_steps {
@@ -188,7 +191,7 @@ async fn main() -> client::Result<()> {
             vec![AccountMeta::new(stack_account.pubkey(), false)],
         );
         let execute_tx = Transaction::new_signed_with_payer(
-            &[execute_ix],
+            &[limit_instructions.clone(), execute_ix],
             Some(&payer.pubkey()),
             &[&payer],
             client.get_latest_blockhash().await?,
