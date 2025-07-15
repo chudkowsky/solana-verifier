@@ -161,15 +161,20 @@ async fn main() -> client::Result<()> {
 
     // Execute all steps until task is complete - split into chunks of max 5000
     const MAX_CHUNK_SIZE: usize = 5000;
-    
+
     let simulation_steps_usize = simulation_steps as usize;
-    
+
     for chunk_start in (0..simulation_steps_usize).step_by(MAX_CHUNK_SIZE) {
         let chunk_end = std::cmp::min(chunk_start + MAX_CHUNK_SIZE, simulation_steps_usize);
         let chunk_size = chunk_end - chunk_start;
-        
-        println!("Processing steps {}-{} ({} steps)", chunk_start, chunk_end - 1, chunk_size);
-        
+
+        println!(
+            "Processing steps {}-{} ({} steps)",
+            chunk_start,
+            chunk_end - 1,
+            chunk_size
+        );
+
         let mut transactions = Vec::new();
         for i in chunk_start..chunk_end {
             let execute_ix = Instruction::new_with_borsh(
@@ -189,7 +194,7 @@ async fn main() -> client::Result<()> {
         send_and_confirm_transactions(&client, &transactions).await?;
         println!("Chunk {}-{} completed", chunk_start, chunk_end - 1);
     }
-    
+
     println!("All execution steps completed");
 
     let mut account_data = client
@@ -229,7 +234,6 @@ fn calculate_expected_get_hash(
     public_input: &stark::swiftness::air::public_memory::PublicInput,
     n_verifier_friendly_commitment_layers: Felt,
 ) -> Felt {
-
     let mut main_page_hash = StarkFelt::ZERO;
     for memory in public_input.main_page.0.iter() {
         let address_bytes = memory.address.to_bytes_be();
