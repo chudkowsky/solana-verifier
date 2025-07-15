@@ -1,15 +1,11 @@
 use utils::{impl_type_identifiable, BidirectionalStack, Executable, TypeIdentifiable};
-
 use crate::{
-    felt::Felt, pedersen::PedersenHash, poseidon::PoseidonHashMany, swiftness::stark::types::{cast_slice_to_struct, StarkProof}
-};
+    felt::Felt, pedersen::PedersenHash, poseidon::PoseidonHashMany, swiftness::stark::types::{cast_slice_to_struct, StarkProof}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GetHashStep {
     Init,
-    PedersenHashingAddress,
     WaitForPedersenAddress,
-    PedersenHashingValue,
     WaitForPedersenValue,
     MainPageHash,
     Program,
@@ -20,7 +16,6 @@ pub enum GetHashStep {
 pub struct GetHash {
     step: GetHashStep,
     main_page_hash: Felt,
-    hash_data: Vec<Felt>,
     main_page_len: usize,
     current_memory_index: usize,
     n_verifier_friendly_commitment_layers: Felt,
@@ -34,7 +29,6 @@ impl GetHash {
         Self {
             step: GetHashStep::Init,
             main_page_hash: Felt::ZERO,
-            hash_data: Vec::new(),
             main_page_len: 0,
             current_memory_index: 0,
             n_verifier_friendly_commitment_layers,
@@ -60,19 +54,20 @@ impl Executable for GetHash {
                 self.accumulated_hash = Felt::ZERO;
 
                 if self.main_page_len == 0 {
-                    // If no main page data, go directly to final pedersen hash
                     self.step = GetHashStep::MainPageHash;
                     return self.execute_final_pedersen_hash(stack);
                 }
 
-                self.step = GetHashStep::PedersenHashingAddress;
-                self.execute_pedersen_for_current_address(stack)
-            }
-            GetHashStep::PedersenHashingAddress => {
-                self.execute_pedersen_for_current_address(stack)
+                let proof_reference: &mut [u8] = stack.get_proof_reference();
+                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                let memory = proof.public_input.main_page.0.as_slice();
+                
+                PedersenHash::push_input(self.accumulated_hash, memory[self.current_memory_index].address, stack);
+                
+                self.step = GetHashStep::WaitForPedersenAddress;
+                vec![PedersenHash::new().to_vec_with_type_tag()]
             }
             GetHashStep::WaitForPedersenAddress => {
-                // Get the result from the address hash
                 let bytes = stack.borrow_front();
                 let pedersen_result = Felt::from_bytes_be_slice(bytes);
                 stack.pop_front();
@@ -80,16 +75,17 @@ impl Executable for GetHash {
                 stack.pop_front();
 
                 self.accumulated_hash = pedersen_result;
+
+                let proof_reference: &mut [u8] = stack.get_proof_reference();
+                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                let memory = proof.public_input.main_page.0.as_slice();
+        
+                PedersenHash::push_input(self.accumulated_hash, memory[self.current_memory_index].value, stack);
                 
-                // Now hash with the value
-                self.step = GetHashStep::PedersenHashingValue;
-                self.execute_pedersen_for_current_value(stack)
-            }
-            GetHashStep::PedersenHashingValue => {
-                self.execute_pedersen_for_current_value(stack)
+                self.step = GetHashStep::WaitForPedersenValue;
+                vec![PedersenHash::new().to_vec_with_type_tag()]
             }
             GetHashStep::WaitForPedersenValue => {
-                // Get the result from the value hash
                 let bytes = stack.borrow_front();
                 let pedersen_result = Felt::from_bytes_be_slice(bytes);
                 stack.pop_front();
@@ -100,74 +96,142 @@ impl Executable for GetHash {
                 self.current_memory_index += 1;
 
                 if self.current_memory_index < self.main_page_len {
-                    // Continue with next memory entry (start with address)
-                    self.step = GetHashStep::PedersenHashingAddress;
-                    self.execute_pedersen_for_current_address(stack)
+                    let proof_reference: &mut [u8] = stack.get_proof_reference();
+                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let memory = proof.public_input.main_page.0.as_slice();
+                    
+                    PedersenHash::push_input(self.accumulated_hash, memory[self.current_memory_index].address, stack);
+                    
+                    self.step = GetHashStep::WaitForPedersenAddress;
+                    vec![PedersenHash::new().to_vec_with_type_tag()]
                 } else {
-                    // All memory entries processed, do final hash with length
                     self.step = GetHashStep::MainPageHash;
-                    self.execute_final_pedersen_hash(stack)
+                    let length_multiplier = Felt::TWO * Felt::from(self.main_page_len);
+        
+                    PedersenHash::push_input(self.accumulated_hash,length_multiplier, stack);
+                    vec![PedersenHash::new().to_vec_with_type_tag()]
                 }
             }
             GetHashStep::MainPageHash => {
-                // Get the final main page hash result
                 let bytes = stack.borrow_front();
                 self.main_page_hash = Felt::from_bytes_be_slice(bytes);
                 stack.pop_front();
                 stack.pop_front();
                 stack.pop_front();
+            
+                let (
+                    n_verifier_friendly_commitment_layers,
+                    log_n_steps,
+                    range_check_min,
+                    range_check_max,
+                    layout,
+                    has_dynamic_params,
+                    dynamic_params_len,
+                    segments_len,
+                    padding_addr,
+                    padding_value,
+                    headers_len,
+                    main_page_len,
+                ) = {
+                    let proof_reference: &mut [u8] = stack.get_proof_reference();
+                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let public_input = &proof.public_input;
+                    
+                    let dynamic_params_len = if let Some(ref dp) = public_input.dynamic_params {
+                        let dynamic_params_vec: Vec<u32> = (*dp).into();
+                        dynamic_params_vec.len()
+                    } else {
+                        0
+                    };
+                    
+                    (
+                        self.n_verifier_friendly_commitment_layers,
+                        public_input.log_n_steps,
+                        public_input.range_check_min,
+                        public_input.range_check_max,
+                        public_input.layout,
+                        public_input.dynamic_params.is_some(),
+                        dynamic_params_len,
+                        public_input.segments.len(),
+                        public_input.padding_addr,
+                        public_input.padding_value,
+                        public_input.continuous_page_headers.len(),
+                        public_input.main_page.0.len(),
+                    )
+                };
+            
+                let mut total_elements = 5; // basic fields
+                total_elements += dynamic_params_len;
+                total_elements += segments_len * 2;
+                total_elements += 5; // padding_addr, padding_value, headers_len+1, main_page_len, main_page_hash
+                total_elements += headers_len * 3;
 
-                // Now prepare the final hash data
-                let proof_reference: &mut [u8] = stack.get_proof_reference();
-                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
-                let public_input = &proof.public_input;
-
-                // Build hash_data vector for final hashing
-                let mut hash_data = vec![
-                    self.n_verifier_friendly_commitment_layers,
-                    public_input.log_n_steps,
-                    public_input.range_check_min,
-                    public_input.range_check_max,
-                    public_input.layout,
-                ];
-
-                // Add dynamic params if they exist
-                if let Some(dynamic_params) = &public_input.dynamic_params {
-                    let dynamic_params_vec: Vec<u32> = (*dynamic_params).into();
-                    hash_data.extend(dynamic_params_vec.into_iter().map(Felt::from));
+                let inputs_with_one = total_elements + 1;
+                let zero_count = (inputs_with_one + 1) / 2 * 2 - inputs_with_one;
+                for _ in 0..zero_count {
+                    stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();
                 }
-
-                // Add segments
-                hash_data.extend(
-                    public_input
-                        .segments
-                        .iter()
-                        .flat_map(|s| vec![s.begin_addr, s.stop_ptr]),
-                );
-
-                hash_data.push(public_input.padding_addr);
-                hash_data.push(public_input.padding_value);
-                hash_data.push(Felt::from(public_input.continuous_page_headers.len() + 1));
-
-                // Add main page info
-                hash_data.push(Felt::from(public_input.main_page.0.len()));
-                hash_data.push(self.main_page_hash);
-
-                // Add continuous page headers
-                hash_data.extend(
-                    public_input
-                        .continuous_page_headers
-                        .iter()
-                        .flat_map(|h| vec![h.start_address, h.size, h.hash]),
-                );
                 
-                self.hash_data = hash_data;
+                stack.push_front(&Felt::ONE.to_bytes_be()).unwrap();
+    
+                for i in (0..headers_len).rev() {
+                    let (start_address, size, hash) = {
+                        let proof_reference: &mut [u8] = stack.get_proof_reference();
+                        let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                        let header = proof.public_input.continuous_page_headers.as_slice();
+                        let header = header[i];
+                        (header.start_address, header.size, header.hash)
+                    };
+                    
+                    stack.push_front(&hash.to_bytes_be()).unwrap();
+                    stack.push_front(&size.to_bytes_be()).unwrap();
+                    stack.push_front(&start_address.to_bytes_be()).unwrap();
+                }
+                
+                stack.push_front(&self.main_page_hash.to_bytes_be()).unwrap();
+                stack.push_front(&Felt::from(main_page_len).to_bytes_be()).unwrap();
+                stack.push_front(&Felt::from(headers_len + 1).to_bytes_be()).unwrap();
+                stack.push_front(&padding_value.to_bytes_be()).unwrap();
+                stack.push_front(&padding_addr.to_bytes_be()).unwrap();
+                
+                for i in (0..segments_len).rev() {
+                    let (begin_addr, stop_ptr) = {
+                        let proof_reference: &mut [u8] = stack.get_proof_reference();
+                        let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                        let segment = proof.public_input.segments.as_slice();
+                        let segment = segment[i];
+                        (segment.begin_addr, segment.stop_ptr)
+                    };
+                    
+                    stack.push_front(&stop_ptr.to_bytes_be()).unwrap();
+                    stack.push_front(&begin_addr.to_bytes_be()).unwrap();
+                }
+                
+                if has_dynamic_params {
+                    let proof_reference: &mut [u8] = stack.get_proof_reference();
+                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let public_input = &proof.public_input;
+                    if let Some(dynamic_params) = &public_input.dynamic_params {
+                        let dynamic_params_vec: Vec<u32> = (*dynamic_params).into();
+                        for value in dynamic_params_vec.iter().rev() {
+                            let felt = Felt::from(*value);
+                            stack.push_front(&felt.to_bytes_be()).unwrap();
+                        }
+                    }
+                }
+                
+                stack.push_front(&layout.to_bytes_be()).unwrap();
+                stack.push_front(&range_check_max.to_bytes_be()).unwrap();
+                stack.push_front(&range_check_min.to_bytes_be()).unwrap();
+                stack.push_front(&log_n_steps.to_bytes_be()).unwrap();
+                stack.push_front(&n_verifier_friendly_commitment_layers.to_bytes_be()).unwrap();
 
-                // Use PoseidonHashMany::push_input to properly prepare the stack
-                PoseidonHashMany::push_input(&self.hash_data, stack);
+                stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();
+                stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();
+                stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();
 
                 self.step = GetHashStep::Program;
-                vec![PoseidonHashMany::new(self.hash_data.len()).to_vec_with_type_tag()]
+                vec![PoseidonHashMany::new(total_elements).to_vec_with_type_tag()]
             }
             GetHashStep::Program => {
                 let bytes = stack.borrow_front();
@@ -190,38 +254,11 @@ impl Executable for GetHash {
 
 impl GetHash {
     #[inline(always)]
-    fn execute_pedersen_for_current_address<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
-        let proof_reference: &mut [u8] = stack.get_proof_reference();
-        let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
-        let memory = proof.public_input.main_page.0.as_slice();
-        
-        let address = memory[self.current_memory_index].address;
-        
-        PedersenHash::push_input(self.accumulated_hash, address, stack);
-        
-        self.step = GetHashStep::WaitForPedersenAddress;
-        vec![PedersenHash::new().to_vec_with_type_tag()]
-    }
-    #[inline(always)]
-    fn execute_pedersen_for_current_value<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
-        let proof_reference: &mut [u8] = stack.get_proof_reference();
-        let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
-        let memory = proof.public_input.main_page.0.as_slice();
-        
-        let value = memory[self.current_memory_index].value;
-
-        PedersenHash::push_input(self.accumulated_hash, value, stack);
-        
-        self.step = GetHashStep::WaitForPedersenValue;
-        vec![PedersenHash::new().to_vec_with_type_tag()]
-    }
-    #[inline(always)]
     fn execute_final_pedersen_hash<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         // Final hash with the length multiplier
         let length_multiplier = Felt::TWO * Felt::from(self.main_page_len);
         
         PedersenHash::push_input(self.accumulated_hash,length_multiplier, stack);
-        
         vec![PedersenHash::new().to_vec_with_type_tag()]
     }
 }
