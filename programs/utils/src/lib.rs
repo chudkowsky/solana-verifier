@@ -28,7 +28,24 @@ pub trait BidirectionalStack {
     fn borrow_mut_back(&mut self) -> &mut [u8];
     fn is_empty_front(&self) -> bool;
     fn is_empty_back(&self) -> bool;
-    fn get_proof_reference(&mut self) -> &mut [u8];
+
+    /// Get a reference to the proof data as any type T
+    fn get_proof_reference<T: Sized>(&self) -> &T {
+        let bytes = self.get_proof_bytes();
+        assert_eq!(bytes.len(), std::mem::size_of::<T>());
+        unsafe { &*(bytes.as_ptr() as *const T) }
+    }
+
+    /// Get a mutable reference to the proof data as any type T
+    fn get_proof_reference_mut<T: Sized>(&mut self) -> &mut T {
+        let bytes = self.get_proof_bytes_mut();
+        assert_eq!(bytes.len(), std::mem::size_of::<T>());
+        unsafe { &mut *(bytes.as_mut_ptr() as *mut T) }
+    }
+
+    /// Get raw proof bytes - to be implemented by concrete types
+    fn get_proof_bytes(&self) -> &[u8];
+    fn get_proof_bytes_mut(&mut self) -> &mut [u8];
 }
 
 pub trait Scheduler: BidirectionalStack {
