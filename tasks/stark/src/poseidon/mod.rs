@@ -24,14 +24,14 @@ impl PoseidonHashMany {
     }
 
     pub fn push_input<T: BidirectionalStack>(inputs: &[Felt], stack: &mut T) {
-        // Pad input with 1 followed by 0's (if necessary).
-        let mut values = inputs.to_owned();
-        values.push(Felt::ONE);
-        values.resize(values.len().div_ceil(2) * 2, Felt::ZERO);
+        let inputs_len = inputs.len() + 1;
+        let zero_count = inputs_len.div_ceil(2) * 2 - inputs_len;
+        for _ in 0..zero_count {
+            stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();
+        }
+        stack.push_front(&Felt::ONE.to_bytes_be()).unwrap();
 
-        assert!(values.len() % 2 == 0);
-
-        values.iter().rev().for_each(|value| {
+        inputs.iter().rev().for_each(|value| {
             stack.push_front(&value.to_bytes_be()).unwrap();
         });
         stack.push_front(&Felt::ZERO.to_bytes_be()).unwrap();

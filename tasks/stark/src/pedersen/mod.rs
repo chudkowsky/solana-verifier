@@ -15,6 +15,7 @@ pub struct PedersenHash {
     y: [bool; 256],
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PerdersenPhase {
     LookupP1,
@@ -43,9 +44,7 @@ impl PedersenHash {
         }
     }
 
-    /// Helper function to push inputs to stack and create task
     pub fn push_input<T: BidirectionalStack>(x: Felt, y: Felt, stack: &mut T) {
-        // Push the inputs to the stack
         stack.push_front(&x.to_bytes_be()).unwrap();
         stack.push_front(&y.to_bytes_be()).unwrap();
     }
@@ -66,7 +65,6 @@ impl Executable for PedersenHash {
     fn execute<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         match self.phase {
             PerdersenPhase::LookupP1 => {
-                // Get inputs from stack
                 let y = Felt::from_bytes_be(stack.borrow_front().try_into().unwrap());
                 stack.pop_front();
                 let x = Felt::from_bytes_be(stack.borrow_front().try_into().unwrap());
@@ -88,12 +86,10 @@ impl Executable for PedersenHash {
                 vec![LookupAndAccumulate::new(&self.x[248..252], 2).to_vec_with_type_tag()]
             }
             PerdersenPhase::LookupP3 => {
-                // // Get accumulator from stack
                 self.phase = PerdersenPhase::LookupP4;
                 vec![LookupAndAccumulate::new(&self.y[..248], 3).to_vec_with_type_tag()]
             }
             PerdersenPhase::LookupP4 => {
-                // // Get accumulator from stack
                 self.phase = PerdersenPhase::Results;
                 vec![LookupAndAccumulate::new(&self.y[248..252], 4).to_vec_with_type_tag()]
             }
@@ -105,7 +101,6 @@ impl Executable for PedersenHash {
                 let x = Felt::from_bytes_be(stack.borrow_front().try_into().unwrap());
                 stack.pop_front();
 
-                // Convert Felt to FieldElement and reconstruct the accumulator point
                 self.acc =
                     ShortWeierstrassProjectivePoint::<StarkCurve>::new([x.0, y.0, z.0]).unwrap();
 
@@ -132,8 +127,8 @@ pub struct LookupAndAccumulate {
     acc: ShortWeierstrassProjectivePoint<StarkCurve>,
     bits: [bool; 248],
     bits_len: usize,
-    table_index: u8,    // 1=P1, 2=P2, 3=P3, 4=P4
-    chunk_index: usize, // Current chunk being processed
+    table_index: u8,
+    chunk_index: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,7 +200,7 @@ impl Executable for LookupAndAccumulate {
                                 &prep[i * PedersenHash::TABLE_SIZE + offset - 1],
                             );
                         }
-                        i + 1 // Return next index
+                        i + 1
                     })
                     .last()
                     .unwrap_or(start_chunk);
@@ -214,7 +209,6 @@ impl Executable for LookupAndAccumulate {
 
                 let total_chunks = bits.len().div_ceil(PedersenHash::CURVE_CONST_BITS);
                 if self.chunk_index >= total_chunks {
-                    // Save and finish
                     stack.push_front(&self.acc.x().to_bytes_be()).unwrap();
                     stack.push_front(&self.acc.y().to_bytes_be()).unwrap();
                     stack.push_front(&self.acc.z().to_bytes_be()).unwrap();

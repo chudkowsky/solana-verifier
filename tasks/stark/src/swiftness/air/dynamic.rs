@@ -1,3 +1,4 @@
+#[repr(C)]
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct DynamicParams {
     pub add_mod_a0_suboffset: u32,
