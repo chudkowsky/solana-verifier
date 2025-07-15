@@ -38,26 +38,6 @@ pub struct StarkProof {
     pub unsent_commitment: StarkUnsentCommitment,
     pub witness: StarkWitness,
 }
-pub trait BytesCast: Sized {
-    fn from_bytes(bytes: &[u8]) -> &Self {
-        cast_slice_to_struct(bytes)
-    }
-
-    fn from_bytes_mut(bytes: &mut [u8]) -> &mut Self {
-        assert_eq!(bytes.len(), std::mem::size_of::<Self>());
-        unsafe { &mut *(bytes.as_mut_ptr() as *mut Self) }
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        cast_struct_to_slice(self)
-    }
-
-    fn as_bytes_mut(&mut self) -> &mut [u8] {
-        cast_struct_to_slice_mut(self)
-    }
-}
-
-impl BytesCast for StarkProof {}
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct StarkUnsentCommitment {
@@ -81,7 +61,6 @@ pub struct StarkWitness {
 }
 #[cfg(test)]
 mod test {
-    use crate::swiftness::stark::types::BytesCast;
     use crate::{
         felt::Felt,
         funvec::FunVec,
@@ -122,34 +101,6 @@ mod test {
         let bytes = cast_struct_to_slice(&mut proof_clone);
 
         let proof_from_bytes = cast_slice_to_struct::<StarkProof>(bytes);
-        assert_eq!(proof_from_bytes, &proof);
-    }
-
-    #[test]
-    fn test_stark_proof_bytes_conversion() {
-        let proof = StarkProof {
-            public_input: PublicInput {
-                log_n_steps: Felt::from(1),
-                range_check_min: Felt::from(2),
-                range_check_max: Felt::from(3),
-                layout: Felt::from(4),
-                dynamic_params: None,
-                segments: FunVec::default(),
-                padding_addr: Felt::from(5),
-                padding_value: Felt::from(6),
-                main_page: Page::default(),
-                continuous_page_headers: FunVec::default(),
-            },
-            config: StarkConfig::default(),
-            unsent_commitment: StarkUnsentCommitment::default(),
-            witness: StarkWitness::default(),
-        };
-
-        // Konwersja do bytes
-        let mut proof_clone = proof.clone();
-        let bytes = proof_clone.as_bytes_mut();
-
-        let proof_from_bytes = <StarkProof>::from_bytes(bytes);
         assert_eq!(proof_from_bytes, &proof);
     }
 }
