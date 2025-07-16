@@ -1,4 +1,5 @@
 use crate::error::VerifierError;
+use stark::swiftness::stark::types::cast_struct_to_slice_mut;
 use stark::swiftness::stark::types::{cast_struct_to_slice, StarkProof};
 use utils::{AccountCast, BidirectionalStack};
 
@@ -145,8 +146,12 @@ impl BidirectionalStack for BidirectionalStackAccount {
         self.back_index == CAPACITY
     }
 
-    fn get_proof_reference(&mut self) -> &mut [u8] {
-        cast_struct_to_slice(&mut self.proof)
+    fn get_proof_bytes(&self) -> &[u8] {
+        cast_struct_to_slice(&self.proof)
+    }
+
+    fn get_proof_bytes_mut(&mut self) -> &mut [u8] {
+        cast_struct_to_slice_mut(&mut self.proof)
     }
 }
 

@@ -37,8 +37,8 @@ pub async fn verify(config: &Config) -> Result<()> {
     info!(public_key:% = stack_account.pubkey(); "Using stack account");
 
     let time = std::time::Instant::now();
-    let mut input: [u64; 2] = [0, 65536];
-    let proof_bytes = cast_struct_to_slice(&mut input);
+    let input: [u64; 2] = [0, 65536];
+    let proof_bytes = cast_struct_to_slice(&input);
     let new_offset = proof_bytes.len();
     let stack_set_instructions = proof_bytes
         .chunks(CHUNK_SIZE)
@@ -56,8 +56,8 @@ pub async fn verify(config: &Config) -> Result<()> {
     let proof_json = serde_json::from_str::<json_parser::StarkProof>(input).unwrap();
     let proof = StarkProofParser::try_from(proof_json).unwrap();
 
-    let mut proof_verifier = proof.transform_to();
-    let proof_bytes = cast_struct_to_slice(&mut proof_verifier);
+    let proof_verifier = proof.transform_to();
+    let proof_bytes = cast_struct_to_slice(&proof_verifier);
 
     info!(size_in_bytes:% = proof_bytes.len() / 1024; "Proof bytes in kb");
     let mut proof_set_instructions = proof_bytes

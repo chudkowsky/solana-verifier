@@ -1,8 +1,6 @@
 use crate::{
-    felt::Felt,
-    pedersen::PedersenHash,
-    poseidon::PoseidonHashMany,
-    swiftness::stark::types::{cast_slice_to_struct, StarkProof},
+    felt::Felt, pedersen::PedersenHash, poseidon::PoseidonHashMany,
+    swiftness::stark::types::StarkProof,
 };
 use utils::{impl_type_identifiable, BidirectionalStack, Executable, TypeIdentifiable};
 
@@ -51,8 +49,7 @@ impl Executable for GetHash {
     fn execute<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         match self.step {
             GetHashStep::Init => {
-                let proof_reference: &mut [u8] = stack.get_proof_reference();
-                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                let proof: &StarkProof = stack.get_proof_reference();
                 self.main_page_len = proof.public_input.main_page.0.len();
                 self.current_memory_index = 0;
                 self.accumulated_hash = Felt::ZERO;
@@ -62,8 +59,6 @@ impl Executable for GetHash {
                     return self.execute_final_pedersen_hash(stack);
                 }
 
-                let proof_reference: &mut [u8] = stack.get_proof_reference();
-                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
                 let memory = proof.public_input.main_page.0.as_slice();
 
                 PedersenHash::push_input(
@@ -84,8 +79,7 @@ impl Executable for GetHash {
 
                 self.accumulated_hash = pedersen_result;
 
-                let proof_reference: &mut [u8] = stack.get_proof_reference();
-                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                let proof: &StarkProof = stack.get_proof_reference();
                 let memory = proof.public_input.main_page.0.as_slice();
 
                 PedersenHash::push_input(
@@ -108,8 +102,7 @@ impl Executable for GetHash {
                 self.current_memory_index += 1;
 
                 if self.current_memory_index < self.main_page_len {
-                    let proof_reference: &mut [u8] = stack.get_proof_reference();
-                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let proof: &StarkProof = stack.get_proof_reference();
                     let memory = proof.public_input.main_page.0.as_slice();
 
                     PedersenHash::push_input(
@@ -149,8 +142,7 @@ impl Executable for GetHash {
                     headers_len,
                     main_page_len,
                 ) = {
-                    let proof_reference: &mut [u8] = stack.get_proof_reference();
-                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let proof: &StarkProof = stack.get_proof_reference();
                     let public_input = &proof.public_input;
 
                     let dynamic_params_len = if let Some(ref dp) = public_input.dynamic_params {
@@ -192,9 +184,7 @@ impl Executable for GetHash {
 
                 for i in (0..headers_len).rev() {
                     let (start_address, size, hash) = {
-                        let proof_reference: &mut [u8] = stack.get_proof_reference();
-                        let proof: &StarkProof =
-                            cast_slice_to_struct::<StarkProof>(proof_reference);
+                        let proof: &StarkProof = stack.get_proof_reference();
                         let header = proof.public_input.continuous_page_headers.as_slice();
                         let header = header[i];
                         (header.start_address, header.size, header.hash)
@@ -219,9 +209,7 @@ impl Executable for GetHash {
 
                 for i in (0..segments_len).rev() {
                     let (begin_addr, stop_ptr) = {
-                        let proof_reference: &mut [u8] = stack.get_proof_reference();
-                        let proof: &StarkProof =
-                            cast_slice_to_struct::<StarkProof>(proof_reference);
+                        let proof: &StarkProof = stack.get_proof_reference();
                         let segment = proof.public_input.segments.as_slice();
                         let segment = segment[i];
                         (segment.begin_addr, segment.stop_ptr)
@@ -232,8 +220,7 @@ impl Executable for GetHash {
                 }
 
                 if has_dynamic_params {
-                    let proof_reference: &mut [u8] = stack.get_proof_reference();
-                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let proof: &StarkProof = stack.get_proof_reference();
                     let public_input = &proof.public_input;
                     if let Some(dynamic_params) = &public_input.dynamic_params {
                         let dynamic_params_vec: Vec<u32> = (*dynamic_params).into();

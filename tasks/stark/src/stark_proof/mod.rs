@@ -1,10 +1,6 @@
 use utils::{impl_type_identifiable, BidirectionalStack, Executable, TypeIdentifiable};
 
-use crate::{
-    felt::Felt,
-    poseidon::PoseidonHashMany,
-    swiftness::stark::types::{cast_slice_to_struct, StarkProof},
-};
+use crate::{felt::Felt, poseidon::PoseidonHashMany, swiftness::stark::types::StarkProof};
 
 pub mod get_hash;
 pub mod stark_commit;
@@ -142,8 +138,7 @@ impl Executable for VerifyPublicInput {
     fn execute<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         match self.step {
             VerifyPublicInputStep::Init => {
-                let proof_reference: &mut [u8] = stack.get_proof_reference();
-                let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                let proof: &StarkProof = stack.get_proof_reference();
                 let public_segments = &proof.public_input.segments;
 
                 let initial_pc: usize = public_segments
@@ -214,8 +209,7 @@ impl Executable for VerifyPublicInput {
                 stack.push_front(&Felt::ONE.to_bytes_be()).unwrap();
 
                 for i in (self.output_start..self.output_end).rev() {
-                    let proof_reference: &mut [u8] = stack.get_proof_reference();
-                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let proof: &StarkProof = stack.get_proof_reference();
                     let memory = proof.public_input.main_page.0.as_slice();
                     let item = memory[i].value;
                     stack.push_front(&item.to_bytes_be()).unwrap();
@@ -236,8 +230,7 @@ impl Executable for VerifyPublicInput {
 
                 stack.push_front(&Felt::ONE.to_bytes_be()).unwrap();
                 for i in (self.program_start..self.program_end).rev() {
-                    let proof_reference: &mut [u8] = stack.get_proof_reference();
-                    let proof: &StarkProof = cast_slice_to_struct::<StarkProof>(proof_reference);
+                    let proof: &StarkProof = stack.get_proof_reference();
                     let memory = proof.public_input.main_page.0.as_slice();
                     let item = memory[i].value;
                     stack.push_front(&item.to_bytes_be()).unwrap();

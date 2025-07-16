@@ -13,7 +13,15 @@ where
     assert_eq!(slice.len(), std::mem::size_of::<T>());
     unsafe { &*(slice.as_ptr() as *const T) }
 }
-pub fn cast_struct_to_slice<T>(s: &mut T) -> &mut [u8]
+pub fn cast_struct_to_slice<T>(s: &T) -> &[u8]
+where
+    T: Sized,
+{
+    let ptr = s as *const T as *const u8;
+    let len = std::mem::size_of::<T>();
+    unsafe { std::slice::from_raw_parts(ptr, len) }
+}
+pub fn cast_struct_to_slice_mut<T>(s: &mut T) -> &mut [u8]
 where
     T: Sized,
 {
