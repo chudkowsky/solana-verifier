@@ -2,6 +2,7 @@ use super::oods_values;
 use crate::fixtures::commitment;
 use crate::fixtures::fri_commitment;
 use felt::Felt;
+use stark::funvec::FunVec;
 use stark::swiftness::commitment::table::config::Config as TableCommitmentConfig;
 use stark::swiftness::commitment::table::types::Commitment as TableCommitment;
 use stark::swiftness::commitment::vector::config::Config as VectorCommitmentConfig;
