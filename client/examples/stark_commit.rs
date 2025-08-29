@@ -469,13 +469,9 @@ async fn main() -> client::Result<()> {
     // Read the result from the account and verify it matches expected values
     println!("\nVerifying results against expected values...");
 
-    let mut account_data = client
-        .get_account_data(&stack_account.pubkey())
-        .await
-        .map_err(ClientError::SolanaClientError)?;
-
     // Get the computed stark_commitment from the account
     let computed_stark_commitment = &stack.stark_commitment;
+    println!("Computed stark_commitment: {computed_stark_commitment:?}");
     // Expected values from stark_commitment.rs fixtures
     // These are the same values used in the unit test
     let expected_traces_original_hash = Felt::from_hex_unchecked(
