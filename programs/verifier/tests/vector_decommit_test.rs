@@ -1,10 +1,5 @@
 use felt::Felt;
-use stark::swiftness::commitment::vector::config::Config as VectorConfig;
-use stark::swiftness::commitment::vector::types::Commitment as VectorCommitment;
-use stark::{
-    stark_proof::stark_verify::vector_decommit::VectorDecommit,
-    swiftness::commitment::vector::types::CommitmentTrait,
-};
+use stark::stark_proof::stark_verify::vector_decommit::VectorDecommit;
 use utils::{BidirectionalStack, Scheduler};
 use verifier::state::BidirectionalStackAccount;
 
@@ -176,34 +171,33 @@ fn test_vector_decommit() {
     println!("  Queries count: {}", queries.len());
     println!("  Authentications count: {}", authentications.len());
 
-    // Push authentications in reverse order (for stack)
-    for auth in authentications.iter().rev() {
-        stack.push_front(&auth.to_bytes_be()).unwrap();
-    }
     // 3. Push authentications (length + auth data)
     let n_authentications = Felt::from(authentications.len() as u64);
     stack.push_front(&n_authentications.to_bytes_be()).unwrap();
 
+    // Push authentications in reverse order (for stack)
+    for auth in authentications.iter().rev() {
+        stack.push_front(&auth.to_bytes_be()).unwrap();
+    }
+
     // Push queries in reverse order (for stack)
     for (index, value) in queries.iter().rev() {
         // Query: index first, then value
-        stack.push_front(&value.to_bytes_be()).unwrap();
         stack.push_front(&index.to_bytes_be()).unwrap();
+        stack.push_front(&value.to_bytes_be()).unwrap();
     }
 
     // 2. Push queries (length + query data)
     let queries_length = Felt::from(queries.len() as u64);
     stack.push_front(&queries_length.to_bytes_be()).unwrap();
 
-    // Create VectorCommitment and use push_to_stack method
-    let vector_config = VectorConfig {
-        height,
-        n_verifier_friendly_commitment_layers: n_verifier_friendly_layers,
-    };
-    let mut vector_commitment = VectorCommitment::new(vector_config, commitment_hash);
-
-    // Push vector commitment using trait method
-    vector_commitment.push_to_stack(&mut stack);
+    // Push data in the order expected by VectorDecommit::ReadCommitmentAndQueries
+    // 1. Push commitment data (height, n_verifier_friendly_layers, commitment_hash)
+    stack.push_front(&height.to_bytes_be()).unwrap();
+    stack
+        .push_front(&n_verifier_friendly_layers.to_bytes_be())
+        .unwrap();
+    stack.push_front(&commitment_hash.to_bytes_be()).unwrap();
 
     // Push the VectorDecommit task
     stack.push_task(VectorDecommit::new());
@@ -212,13 +206,42 @@ fn test_vector_decommit() {
     while !stack.is_empty_back() {
         stack.execute();
         steps += 1;
+
+        // Safety check to prevent infinite loops
+        if steps > 1000 {
+            panic!("Test exceeded 1000 steps, possible infinite loop");
+        }
     }
 
     println!("Executed {} steps", steps);
-
     println!("Final stack size: {}", stack.back_index - stack.front_index);
+
+    // Check if we have a result on the stack
+    if !stack.is_empty_front() {
+        let result = Felt::from_bytes_be_slice(stack.borrow_front());
+        stack.pop_front();
+
+        println!("Final result: {:?}", result);
+
+        // The result should be 1 for success, 0 for failure
+        if result == Felt::ONE {
+            println!("Vector decommit successful!");
+        } else {
+            println!("Vector decommit failed!");
+        }
+
+        // In the original test, this should succeed
+        assert_eq!(
+            result,
+            Felt::ONE,
+            "Vector decommit should succeed with valid data"
+        );
+    } else {
+        println!("No result found on stack");
+        panic!("Expected result on stack but found none");
+    }
+
     assert!(steps > 0, "Should have executed at least one step");
-    assert!(stack.is_empty_front(), "Front stack should be empty");
     assert!(stack.is_empty_back(), "Back stack should be empty");
     println!("Test completed successfully");
 }

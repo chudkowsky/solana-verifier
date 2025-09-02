@@ -1,8 +1,8 @@
-use crate::funvec::{FunVec, FUNVEC_AUTHENTICATIONS, FUNVEC_QUERIES};
-use crate::swiftness::commitment::vector::config::{Config, ConfigTrait, VectorConfigBytes};
-use crate::swiftness::stark::types::{cast_slice_to_struct, cast_struct_to_slice, VerifyVariables};
+use crate::funvec::{FunVec, FUNVEC_AUTHENTICATIONS};
+use crate::stark_proof::stark_verify::vector_decommit::VectorDecommitError;
+use crate::swiftness::commitment::vector::config::Config;
 use felt::Felt;
-use utils::{BidirectionalStack, StarkVerifyTrait};
+use utils::BidirectionalStack;
 
 // Commitment for a vector of field elements.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -71,65 +71,8 @@ pub struct Witness {
     pub authentications: FunVec<Felt, FUNVEC_AUTHENTICATIONS>,
 }
 
-impl CommitmentTrait<Witness, ()> for Witness {
-    fn from_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) {
-        let n_authentications = Felt::from_bytes_be_slice(stack.borrow_front());
-        stack.pop_front();
-
-        let n_auth_usize: usize = n_authentications.try_into().unwrap();
-        assert!(
-            n_auth_usize <= FUNVEC_AUTHENTICATIONS,
-            "Too many authentications: {} > {}",
-            n_auth_usize,
-            FUNVEC_AUTHENTICATIONS
-        );
-        println!(
-            "DEBUG VectorWitness::from_stack: n_auth_usize = {}",
-            n_auth_usize
-        );
-
-        for i in 0..n_auth_usize {
-            let auth = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
-
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            verify_variables.authentications[i] = auth;
-        }
-    }
-
-    fn from_stack_ref<T: BidirectionalStack + StarkVerifyTrait>(_stack: &T) -> &Self {
-        // For Witness, we don't return a reference since data is stored in VerifyVariables
-        // This is a placeholder - in practice, use from_stack for Witness
-        unimplemented!("Witness data is stored in VerifyVariables, use from_stack instead")
-    }
-
-    #[inline(always)]
-    fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(&mut self, stack: &mut T) {
-        // Get count first
-        let count = Felt::from_bytes_be_slice(stack.borrow_front());
-        stack.pop_front();
-        let count_usize: usize = count.to_biguint().try_into().unwrap();
-
-        // Push authentications in reverse order (for stack) - no allocation
-        for i in (0..count_usize).rev() {
-            let auth_bytes = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                verify_variables.authentications[i].to_bytes_be()
-            };
-            stack.push_front(&auth_bytes).unwrap();
-        }
-        stack
-            .push_front(&Felt::from(count_usize).to_bytes_be())
-            .unwrap();
-    }
-
-    fn to_bytes_be(&self) -> Witness {
-        *self
-    }
-}
-
 // Query represents a single query to the vector commitment
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Query {
     pub index: Felt,
     pub value: Felt,
@@ -139,25 +82,12 @@ impl Query {
     pub fn new(index: Felt, value: Felt) -> Self {
         Self { index, value }
     }
-}
-
-impl Default for Query {
-    fn default() -> Self {
-        Self {
-            index: Felt::ZERO,
-            value: Felt::ZERO,
-        }
-    }
-}
-
-impl Query {
     pub fn from_bytes(index_bytes: &[u8], value_bytes: &[u8]) -> Self {
         Self {
             index: Felt::from_bytes_be_slice(index_bytes),
             value: Felt::from_bytes_be_slice(value_bytes),
         }
     }
-    #[inline(always)]
     /// Read Query from stack: index first, then value
     pub fn from_stack<T: BidirectionalStack>(stack: &mut T) -> Self {
         let index = Felt::from_bytes_be_slice(stack.borrow_front());
@@ -167,72 +97,57 @@ impl Query {
         Self::new(index, value)
     }
 
+    /// Push Query to stack: value first, then index (reverse order for stack)
+    pub fn push_to_stack<T: BidirectionalStack>(&self, stack: &mut T) {
+        stack.push_front(&self.value.to_bytes_be()).unwrap();
+        stack.push_front(&self.index.to_bytes_be()).unwrap();
+    }
+
     pub fn to_bytes(&self) -> (Vec<u8>, Vec<u8>) {
         (
             self.index.to_bytes_be().to_vec(),
             self.value.to_bytes_be().to_vec(),
         )
     }
-    /// Read queries from stack and store them in a mutable slice (no allocation)
-    #[inline(always)]
-    pub fn read_queries_from_stack<T: BidirectionalStack + StarkVerifyTrait>(
-        stack: &mut T,
-        count: &mut usize,
-    ) {
-        // Read queries directly into the slice
-        for i in 0..*count {
-            let index = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
-            let value = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
 
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            let queries_slice = &mut verify_variables.temp_queries;
-            queries_slice[i * 2] = index;
-            queries_slice[i * 2 + 1] = value;
+    /// Read multiple queries from stack with length
+    pub fn read_queries_from_stack<T: BidirectionalStack>(
+        stack: &mut T,
+    ) -> Result<Vec<Query>, VectorDecommitError> {
+        let queries_len = Felt::from_bytes_be_slice(stack.borrow_front());
+        println!("READ: Queries length: {:?}", queries_len);
+        stack.pop_front();
+
+        let mut queries = Vec::with_capacity(queries_len.to_biguint().try_into().unwrap());
+        for _ in 0..queries_len.to_biguint().try_into().unwrap() {
+            queries.push(Query::from_stack(stack));
         }
+        stack.push_front(&queries_len.to_bytes_be()).unwrap();
+
+        Ok(queries)
     }
 
-    /// Push queries from a slice to stack (no allocation)
-    #[inline(always)]
-    pub fn push_queries_to_stack<T: BidirectionalStack + StarkVerifyTrait>(
-        count: usize,
-        stack: &mut T,
-    ) {
-        // Push queries in reverse order for stack - no allocation
-        for i in (0..count).rev() {
-            let (value_bytes, index_bytes) = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                let queries_slice = &mut verify_variables.temp_queries;
-                let value = queries_slice[i * 2 + 1];
-                let index = queries_slice[i * 2];
-                (value.to_bytes_be(), index.to_bytes_be())
-            };
-            stack.push_front(&value_bytes).unwrap();
-            stack.push_front(&index_bytes).unwrap();
+    /// Push multiple queries to stack with length
+    pub fn push_queries_to_stack<T: BidirectionalStack>(queries: &[Query], stack: &mut T) {
+        // Push queries in reverse order for stack
+        for query in queries.iter().rev() {
+            query.push_to_stack(stack);
         }
         // Push length
-        stack.push_front(&Felt::from(count).to_bytes_be()).unwrap();
+        stack
+            .push_front(&Felt::from(queries.len()).to_bytes_be())
+            .unwrap();
     }
 }
 
 // QueryWithDepth extends Query with depth information for tree traversal
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct QueryWithDepth {
     pub index: Felt,
     pub value: Felt,
     pub depth: Felt,
 }
 
-impl Default for QueryWithDepth {
-    fn default() -> Self {
-        Self {
-            index: Felt::ZERO,
-            value: Felt::ZERO,
-            depth: Felt::ZERO,
-        }
-    }
-}
 impl QueryWithDepth {
     pub fn from_query(query: &Query, depth: Felt) -> Self {
         Self {
@@ -248,112 +163,4 @@ impl QueryWithDepth {
             depth,
         }
     }
-    pub fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) {
-        // Get data first in separate scope
-        let count = {
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            let queries_slice = &mut verify_variables.queries;
-            queries_slice.len() / 3
-        };
-
-        // Push queries in reverse order - no allocation
-        for i in (0..count).rev() {
-            let (depth_bytes, value_bytes, index_bytes) = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                let queries_slice = &mut verify_variables.queries;
-                let depth = queries_slice[i * 3 + 2];
-                let value = queries_slice[i * 3 + 1];
-                let index = queries_slice[i * 3];
-                (
-                    depth.to_bytes_be(),
-                    value.to_bytes_be(),
-                    index.to_bytes_be(),
-                )
-            };
-
-            stack.push_front(&depth_bytes).unwrap();
-            stack.push_front(&value_bytes).unwrap();
-            stack.push_front(&index_bytes).unwrap();
-        }
-        // Push length
-        stack.push_front(&Felt::from(count).to_bytes_be()).unwrap();
-    }
-    /// Read queries with depth from stack and store them in a mutable slice (no allocation)
-    #[inline(always)]
-    pub fn read_queries_with_depth_from_stack<T: BidirectionalStack + StarkVerifyTrait>(
-        stack: &mut T,
-    ) {
-        let n_queries = Felt::from_bytes_be_slice(stack.borrow_front());
-        stack.pop_front();
-
-        let n_queries_usize: usize = n_queries.try_into().unwrap();
-        assert!(
-            n_queries_usize <= FUNVEC_QUERIES,
-            "Too many queries: {} > {}",
-            n_queries_usize,
-            FUNVEC_QUERIES
-        );
-
-        // Clear the entire queries array first
-        {
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            let queries_slice = &mut verify_variables.queries;
-            queries_slice.fill(Felt::ZERO);
-        }
-
-        for i in 0..n_queries_usize {
-            let index = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
-            let value = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
-            let depth = Felt::from_bytes_be_slice(stack.borrow_front());
-            stack.pop_front();
-
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            let queries_slice = &mut verify_variables.queries;
-
-            queries_slice[i * 3] = index;
-            queries_slice[i * 3 + 1] = value;
-            queries_slice[i * 3 + 2] = depth;
-        }
-    }
-
-    /// Push queries with depth from a slice to stack (no allocation)
-    #[inline(always)]
-    pub fn push_queries_with_depth_to_stack<T: BidirectionalStack + StarkVerifyTrait>(
-        count: usize,
-        stack: &mut T,
-    ) {
-        // Push queries in reverse order - no allocation
-        for i in (0..count).rev() {
-            let (depth_bytes, value_bytes, index_bytes) = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                let queries_slice = &mut verify_variables.queries;
-                let depth = queries_slice[i * 3 + 2];
-                let value = queries_slice[i * 3 + 1];
-                let index = queries_slice[i * 3];
-                (
-                    depth.to_bytes_be(),
-                    value.to_bytes_be(),
-                    index.to_bytes_be(),
-                )
-            };
-
-            stack.push_front(&depth_bytes).unwrap();
-            stack.push_front(&value_bytes).unwrap();
-            stack.push_front(&index_bytes).unwrap();
-        }
-        // Push length
-        stack.push_front(&Felt::from(count).to_bytes_be()).unwrap();
-    }
-}
-
-#[derive(Debug, Clone)]
-#[repr(C)]
-pub struct PendingHashComputation {
-    pub is_active: bool,
-    pub parent_index: Felt,
-    pub parent_depth: Felt,
-    pub next_start: u128,
-    pub next_auth_start: u128,
 }
