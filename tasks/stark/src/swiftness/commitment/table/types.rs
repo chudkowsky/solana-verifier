@@ -55,65 +55,58 @@ pub struct Decommitment {
     pub montgomery_values: FunVec<Felt, FUNVEC_DECOMMITMENT_VALUES>,
 }
 
-impl CommitmentTrait<Decommitment, ()> for Decommitment {
-    fn from_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) {
+impl CommitmentTrait<Decommitment> for Decommitment {
+    fn from_stack<T: BidirectionalStack>(stack: &mut T) -> Self {
         // Read values length
         let values_len = Felt::from_bytes_be_slice(stack.borrow_front());
         stack.pop_front();
-        let count = values_len.to_biguint().try_into().unwrap();
-        println!("count: {:?}", count);
+        println!("values_len: {:?}", values_len);
+        let len = values_len.to_biguint().try_into().unwrap();
 
-        // Read decommitment_values
-        for i in 0..count {
+        // Read values
+        let mut values = FunVec::default();
+        for _ in 0..len {
             let value = Felt::from_bytes_be_slice(stack.borrow_front());
             stack.pop_front();
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            verify_variables.decommitment_values[i] = value;
+            values.push(value);
         }
+
+        // Read montgomery_values length
+        let montgomery_len = Felt::from_bytes_be_slice(stack.borrow_front());
+        stack.pop_front();
+        println!("montgomery_len: {:?}", montgomery_len);
+        let montgomery_len_usize = montgomery_len.to_biguint().try_into().unwrap();
 
         // Read montgomery_values
-        for i in 0..count {
+        let mut montgomery_values = FunVec::default();
+        for _ in 0..montgomery_len_usize {
             let value = Felt::from_bytes_be_slice(stack.borrow_front());
             stack.pop_front();
-            let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-            verify_variables.montgomery_values[i] = value;
+            montgomery_values.push(value);
+        }
+
+        Self {
+            values,
+            montgomery_values,
         }
     }
 
-    fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(&mut self, stack: &mut T) {
-        // Get count first
-        let count = Felt::from_bytes_be_slice(stack.borrow_front());
-        stack.pop_front();
-        let count_usize: usize = count.to_biguint().try_into().unwrap();
-
-        // Push montgomery_values in reverse order - no allocation
-        for i in (0..count_usize).rev() {
-            let value_bytes = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                verify_variables.montgomery_values[i].to_bytes_be()
-            };
-            stack.push_front(&value_bytes).unwrap();
+    fn push_to_stack<T: BidirectionalStack>(&self, stack: &mut T) {
+        // Push montgomery_values in reverse order
+        for value in self.montgomery_values.as_slice().iter().rev() {
+            stack.push_front(&value.to_bytes_be()).unwrap();
         }
         stack
-            .push_front(&Felt::from(count_usize).to_bytes_be())
+            .push_front(&Felt::from(self.montgomery_values.len()).to_bytes_be())
             .unwrap();
 
-        // Push decommitment_values in reverse order - no allocation
-        for i in (0..count_usize).rev() {
-            let value_bytes = {
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                verify_variables.decommitment_values[i].to_bytes_be()
-            };
-            stack.push_front(&value_bytes).unwrap();
+        // Push values in reverse order
+        for value in self.values.as_slice().iter().rev() {
+            stack.push_front(&value.to_bytes_be()).unwrap();
         }
         stack
-            .push_front(&Felt::from(count_usize).to_bytes_be())
+            .push_front(&Felt::from(self.values.len()).to_bytes_be())
             .unwrap();
-    }
-
-    fn from_stack_ref<T: BidirectionalStack + StarkVerifyTrait>(_stack: &T) -> &Self {
-        // For Decommitment, data is stored in VerifyVariables, use from_stack instead
-        unimplemented!("Decommitment data is stored in VerifyVariables, use from_stack instead")
     }
 
     fn to_bytes_be(&self) -> Decommitment {
