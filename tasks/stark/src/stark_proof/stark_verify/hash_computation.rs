@@ -1,13 +1,9 @@
 use felt::Felt;
 use sha3::{Digest, Keccak256};
-use utils::{
-    impl_type_identifiable, BidirectionalStack, Executable, ProofData, StarkVerifyTrait,
-    TypeIdentifiable,
-};
+use utils::{impl_type_identifiable, BidirectionalStack, Executable, ProofData, TypeIdentifiable};
 
 use crate::poseidon::PoseidonHash;
 use crate::swiftness::commitment::vector::types::QueryWithDepth;
-use crate::swiftness::stark::types::VerifyVariables;
 
 // New tasks to replace method calls
 #[derive(Debug, Clone)]
@@ -141,10 +137,7 @@ impl Default for HashComputationWithQueries {
 impl_type_identifiable!(HashComputationWithQueries);
 
 impl Executable for HashComputationWithQueries {
-    fn execute<T: BidirectionalStack + ProofData + StarkVerifyTrait>(
-        &mut self,
-        stack: &mut T,
-    ) -> Vec<Vec<u8>> {
+    fn execute<T: BidirectionalStack + ProofData>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
         match self.step {
             HashComputationWithQueriesStep::Init => {
                 if self.is_verifier_friendly {
@@ -154,48 +147,41 @@ impl Executable for HashComputationWithQueries {
                 } else {
                     let hash = keccak_hash(self.x, self.y);
 
-                    // Read queue using trait method
-                    QueryWithDepth::read_queries_with_depth_from_stack(stack);
+                    let n_queries = Felt::from_bytes_be_slice(stack.borrow_front());
+                    stack.pop_front();
+                    let mut queue = Vec::new();
 
-                    // Add new query to pre-allocated array
-                    let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                    let queries_slice = &mut verify_variables.queries;
+                    let n_queries_usize: usize = n_queries.try_into().unwrap();
 
-                    // Find next available slot
-                    let mut next_slot = 0;
-                    while next_slot < queries_slice.len() / 3
-                        && queries_slice[next_slot * 3] != Felt::ZERO
-                    {
-                        next_slot += 1;
+                    for _ in 0..n_queries_usize {
+                        let index = Felt::from_bytes_be_slice(stack.borrow_front());
+                        stack.pop_front();
+                        let value = Felt::from_bytes_be_slice(stack.borrow_front());
+                        stack.pop_front();
+                        let depth = Felt::from_bytes_be_slice(stack.borrow_front());
+                        stack.pop_front();
+                        queue.push(QueryWithDepth {
+                            index,
+                            value,
+                            depth,
+                        });
                     }
 
-                    // Check if we found a free slot
-                    assert!(
-                        next_slot < queries_slice.len() / 3,
-                        "No free slot for query, next_slot: {}, max: {}",
-                        next_slot,
-                        queries_slice.len() / 3
-                    );
+                    queue.push(QueryWithDepth {
+                        index: self.parent_index,
+                        value: hash,
+                        depth: self.parent_depth,
+                    });
 
-                    // Add new query
-                    queries_slice[next_slot * 3] = self.parent_index;
-                    queries_slice[next_slot * 3 + 1] = hash;
-                    queries_slice[next_slot * 3 + 2] = self.parent_depth;
+                    for query in queue.iter().rev() {
+                        stack.push_front(&query.depth.to_bytes_be()).unwrap();
+                        stack.push_front(&query.value.to_bytes_be()).unwrap();
+                        stack.push_front(&query.index.to_bytes_be()).unwrap();
+                    }
 
-                    // Push queue using trait method - calculate actual count
-                    let actual_count = {
-                        let verify_variables: &mut VerifyVariables =
-                            stack.get_verify_variables_mut();
-                        let queries_slice = &mut verify_variables.queries;
-                        let mut count = 0;
-                        for i in 0..(queries_slice.len() / 3) {
-                            if queries_slice[i * 3] != Felt::ZERO {
-                                count = i + 1;
-                            }
-                        }
-                        count
-                    };
-                    QueryWithDepth::push_queries_with_depth_to_stack(actual_count, stack);
+                    stack
+                        .push_front(&Felt::from(queue.len()).to_bytes_be())
+                        .unwrap();
 
                     stack.push_front(&hash.to_bytes_be()).unwrap();
 
@@ -209,47 +195,42 @@ impl Executable for HashComputationWithQueries {
                 stack.pop_front();
                 stack.pop_front();
 
-                // Read queue using trait method
-                QueryWithDepth::read_queries_with_depth_from_stack(stack);
+                // Read queue data from stack
+                let n_queries = Felt::from_bytes_be_slice(stack.borrow_front());
+                stack.pop_front();
+                let mut queue = Vec::new();
 
-                // Add new query to pre-allocated array
-                let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                let queries_slice = &mut verify_variables.queries;
+                let n_queries_usize: usize = n_queries.try_into().unwrap();
 
-                // Find next available slot
-                let mut next_slot = 0;
-                while next_slot < queries_slice.len() / 3
-                    && queries_slice[next_slot * 3] != Felt::ZERO
-                {
-                    next_slot += 1;
+                for _ in 0..n_queries_usize {
+                    let index = Felt::from_bytes_be_slice(stack.borrow_front());
+                    stack.pop_front();
+                    let value = Felt::from_bytes_be_slice(stack.borrow_front());
+                    stack.pop_front();
+                    let depth = Felt::from_bytes_be_slice(stack.borrow_front());
+                    stack.pop_front();
+                    queue.push(QueryWithDepth {
+                        index,
+                        value,
+                        depth,
+                    });
                 }
 
-                // Check if we found a free slot
-                assert!(
-                    next_slot < queries_slice.len() / 3,
-                    "No free slot for query, next_slot: {}, max: {}",
-                    next_slot,
-                    queries_slice.len() / 3
-                );
+                queue.push(QueryWithDepth {
+                    index: self.parent_index,
+                    value: hash,
+                    depth: self.parent_depth,
+                });
 
-                // Add new query
-                queries_slice[next_slot * 3] = self.parent_index;
-                queries_slice[next_slot * 3 + 1] = hash;
-                queries_slice[next_slot * 3 + 2] = self.parent_depth;
+                for query in queue.iter().rev() {
+                    stack.push_front(&query.depth.to_bytes_be()).unwrap();
+                    stack.push_front(&query.value.to_bytes_be()).unwrap();
+                    stack.push_front(&query.index.to_bytes_be()).unwrap();
+                }
 
-                // Push queue using trait method - calculate actual count
-                let actual_count = {
-                    let verify_variables: &mut VerifyVariables = stack.get_verify_variables_mut();
-                    let queries_slice = &mut verify_variables.queries;
-                    let mut count = 0;
-                    for i in 0..(queries_slice.len() / 3) {
-                        if queries_slice[i * 3] != Felt::ZERO {
-                            count = i + 1;
-                        }
-                    }
-                    count
-                };
-                QueryWithDepth::push_queries_with_depth_to_stack(actual_count, stack);
+                stack
+                    .push_front(&Felt::from(queue.len()).to_bytes_be())
+                    .unwrap();
 
                 stack.push_front(&hash.to_bytes_be()).unwrap();
 
