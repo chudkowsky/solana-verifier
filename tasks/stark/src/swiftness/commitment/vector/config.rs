@@ -20,7 +20,7 @@ pub struct VectorConfigBytes {
 }
 
 impl Config {
-    pub fn new(height: Felt, n_verifier_friendly_commitment_layers: Felt) -> Self {
+    fn new(height: Felt, n_verifier_friendly_commitment_layers: Felt) -> Self {
         Self {
             height,
             n_verifier_friendly_commitment_layers,

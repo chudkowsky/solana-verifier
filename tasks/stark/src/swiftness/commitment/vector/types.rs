@@ -1,5 +1,5 @@
 use crate::funvec::{FunVec, FUNVEC_AUTHENTICATIONS};
-use crate::swiftness::commitment::vector::config::Config;
+use crate::swiftness::commitment::vector::config::{Config, ConfigTrait, VectorConfigBytes};
 use felt::Felt;
 use utils::BidirectionalStack;
 
@@ -14,15 +14,6 @@ pub struct VectorCommitmentBytes {
     pub config: VectorConfigBytes,
     pub commitment_hash: [u8; 32],
 }
-pub trait CommitmentTrait<P, R = Self>: Sized
-where
-    R: Sized,
-{
-    fn from_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) -> R;
-    fn from_stack_ref<T: BidirectionalStack + StarkVerifyTrait>(stack: &T) -> &Self;
-    fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(&mut self, stack: &mut T);
-    fn to_bytes_be(&self) -> P;
-}
 
 impl Commitment {
     pub fn new(config: Config, commitment_hash: Felt) -> Self {
@@ -31,31 +22,24 @@ impl Commitment {
             commitment_hash,
         }
     }
-}
 
-impl CommitmentTrait<VectorCommitmentBytes> for Commitment {
-    // #[inline(always)]
-    fn from_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) -> Self {
-        let data = stack.borrow_front();
-        let commitment_ref = cast_slice_to_struct::<Self>(data);
-        let commitment = *commitment_ref; // Copy only when needed
+    /// Read Query from stack: index first, then value
+    pub fn from_stack<T: BidirectionalStack>(stack: &mut T) -> Self {
+        let config = Config::from_stack(stack);
+        let commitment_hash = Felt::from_bytes_be_slice(stack.borrow_front());
         stack.pop_front();
-        commitment
+        Self::new(config, commitment_hash)
     }
 
-    // #[inline(always)]
-    fn from_stack_ref<T: BidirectionalStack + StarkVerifyTrait>(stack: &T) -> &Self {
-        let data = stack.borrow_front();
-        cast_slice_to_struct::<Self>(data)
+    /// Push Query to stack: value first, then index (reverse order for stack)
+    pub fn push_to_stack<T: BidirectionalStack>(&self, stack: &mut T) {
+        stack
+            .push_front(&self.commitment_hash.to_bytes_be())
+            .unwrap();
+        self.config.push_to_stack(stack);
     }
 
-    #[inline(always)]
-    fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(&mut self, stack: &mut T) {
-        let commitment_bytes = cast_struct_to_slice(self);
-        stack.push_front(commitment_bytes).unwrap();
-    }
-
-    fn to_bytes_be(&self) -> VectorCommitmentBytes {
+    pub fn to_bytes_be(&self) -> VectorCommitmentBytes {
         VectorCommitmentBytes {
             config: self.config.to_bytes_be(),
             commitment_hash: self.commitment_hash.to_bytes_be(),
@@ -153,6 +137,23 @@ impl QueryWithDepth {
             value: query.value,
             depth,
         }
+    }
+
+    /// Push multiple QueryWithDepth objects to stack with length
+    pub fn push_queries_with_depth_to_stack<T: BidirectionalStack>(
+        queries: &[QueryWithDepth],
+        stack: &mut T,
+    ) {
+        // Push queries in reverse order for stack
+        for query in queries.iter().rev() {
+            stack.push_front(&query.depth.to_bytes_be()).unwrap();
+            stack.push_front(&query.value.to_bytes_be()).unwrap();
+            stack.push_front(&query.index.to_bytes_be()).unwrap();
+        }
+        // Push length
+        stack
+            .push_front(&Felt::from(queries.len()).to_bytes_be())
+            .unwrap();
     }
 }
 

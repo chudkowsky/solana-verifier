@@ -1,11 +1,12 @@
-use crate::funvec::{FunVec, FUNVEC_DECOMMITMENT_VALUES};
 use crate::swiftness::commitment::table::config::{Config, TableConfigBytes};
 use crate::swiftness::commitment::vector::config::ConfigTrait;
-use crate::swiftness::commitment::vector::types::{CommitmentTrait, VectorCommitmentBytes};
-use crate::swiftness::commitment::vector::{self};
-use crate::swiftness::stark::types::{cast_slice_to_struct, cast_struct_to_slice, VerifyVariables};
+use crate::swiftness::commitment::vector::types::VectorCommitmentBytes;
+use crate::{
+    funvec::{FunVec, FUNVEC_DECOMMITMENT_VALUES},
+    swiftness::commitment::vector::{self, types::Commitment as VectorCommitment},
+};
 use felt::Felt;
-use utils::{BidirectionalStack, StarkVerifyTrait};
+use utils::BidirectionalStack;
 
 // Commitment for a table (n_rows x n_columns) of field elements in montgomery form.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -23,35 +24,31 @@ impl Commitment {
     }
 }
 
-pub struct TableCommitmentBytes {
-    pub config: TableConfigBytes,
-    pub vector_commitment: VectorCommitmentBytes,
+pub trait CommitmentTrait<P, C>: Sized {
+    fn from_stack<T: BidirectionalStack>(stack: &mut T) -> Self;
+    fn push_to_stack<T: BidirectionalStack>(&self, stack: &mut T);
+    fn to_bytes_be(&self) -> (P, C);
 }
 
-impl CommitmentTrait<TableCommitmentBytes> for Commitment {
-    fn from_stack<T: BidirectionalStack + StarkVerifyTrait>(stack: &mut T) -> Self {
-        let data = stack.borrow_front();
-        let commitment_ref = cast_slice_to_struct::<Self>(data);
-        let commitment = *commitment_ref; // Copy only when needed
-        stack.pop_front();
-        commitment
+impl CommitmentTrait<VectorCommitmentBytes, TableConfigBytes> for Commitment {
+    /// Read Query from stack: index first, then value
+    fn from_stack<T: BidirectionalStack>(stack: &mut T) -> Self {
+        let config = Config::from_stack(stack);
+        let value = VectorCommitment::from_stack(stack);
+        Self::new(config, value)
     }
 
-    fn from_stack_ref<T: BidirectionalStack + StarkVerifyTrait>(stack: &T) -> &Self {
-        let data = stack.borrow_front();
-        cast_slice_to_struct::<Self>(data)
+    /// Push Query to stack: value first, then index (reverse order for stack)
+    fn push_to_stack<T: BidirectionalStack>(&self, stack: &mut T) {
+        self.vector_commitment.push_to_stack(stack);
+        self.config.push_to_stack(stack);
     }
 
-    fn push_to_stack<T: BidirectionalStack + StarkVerifyTrait>(&mut self, stack: &mut T) {
-        let commitment_bytes = cast_struct_to_slice(self);
-        stack.push_front(commitment_bytes).unwrap();
-    }
-
-    fn to_bytes_be(&self) -> TableCommitmentBytes {
-        TableCommitmentBytes {
-            vector_commitment: self.vector_commitment.to_bytes_be(),
-            config: self.config.to_bytes_be(),
-        }
+    fn to_bytes_be(&self) -> (VectorCommitmentBytes, TableConfigBytes) {
+        (
+            self.vector_commitment.to_bytes_be(),
+            self.config.to_bytes_be(),
+        )
     }
 }
 
