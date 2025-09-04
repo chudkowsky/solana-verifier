@@ -354,7 +354,7 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let signature = interact_with_program_instructions(
+    let _ = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,
@@ -372,7 +372,7 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let signature = interact_with_program_instructions(
+    let _ = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,
@@ -388,7 +388,7 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let signature = interact_with_program_instructions(
+    let _ = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,
@@ -406,7 +406,7 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let signature = interact_with_program_instructions(
+    let _ = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,
@@ -422,7 +422,7 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let signature = interact_with_program_instructions(
+    let _ = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,

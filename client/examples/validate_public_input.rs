@@ -9,10 +9,10 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_system_interface::instruction::create_account;
-use stark::{felt::Felt, swiftness::stark::types::cast_struct_to_slice};
+use stark::{swiftness::stark::types::cast_struct_to_slice};
 use std::{mem::size_of, path::Path};
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
-use utils::{AccountCast, BidirectionalStack, Executable};
+use utils::{AccountCast, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
 
 use stark::stark_proof::validate_public_input::ValidatePublicInput;
