@@ -3,6 +3,7 @@ mod primitive_conversions;
 use core::ops::{Add, Neg};
 use core::str::FromStr;
 
+use num_bigint::BigUint;
 use size_of::SizeOf;
 
 use lambdaworks_math::{
@@ -341,9 +342,23 @@ impl Felt {
         self.0.representative().limbs
     }
 
+    /// Get the inner FieldElement (for internal use)
+    pub fn inner(&self) -> &FieldElement<Stark252PrimeField> {
+        &self.0
+    }
+
     /// Count the minimum number of bits needed to express `self`'s representative.
     pub fn bits(&self) -> usize {
         self.0.representative().bits_le()
+    }
+
+    pub fn to_biguint(&self) -> BigUint {
+        let big_digits = self
+            .to_le_digits()
+            .into_iter()
+            .flat_map(|limb| [limb as u32, (limb >> 32) as u32])
+            .collect();
+        BigUint::new(big_digits)
     }
 }
 
@@ -746,4 +761,18 @@ mod formatting {
             write!(f, "{}", self.0)
         }
     }
+}
+
+#[macro_export]
+macro_rules! felt_nonzero {
+    ($expr:expr) => {
+        $crate::NonZeroFelt::from_felt_unchecked($expr)
+    };
+}
+
+#[macro_export]
+macro_rules! felt_try_nonzero {
+    ($expr:expr) => {
+        $crate::NonZeroFelt::try_from($expr)
+    };
 }

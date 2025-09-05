@@ -3,7 +3,8 @@ pub mod hades;
 
 use utils::{impl_type_identifiable, BidirectionalStack, Executable, TypeIdentifiable};
 
-use crate::{felt::Felt, poseidon::hades::HadesPermutation};
+use crate::poseidon::hades::HadesPermutation;
+use felt::Felt;
 
 #[repr(C)]
 pub struct PoseidonHashMany {
@@ -68,5 +69,56 @@ impl Executable for PoseidonHashMany {
 
     fn is_finished(&mut self) -> bool {
         self.counter >= self.input_length
+    }
+}
+
+#[repr(C)]
+pub struct PoseidonHash {
+    phase: PoseidonPhase,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoseidonPhase {
+    Init,
+    Done,
+}
+
+impl_type_identifiable!(PoseidonHash);
+
+impl PoseidonHash {
+    pub fn new() -> Self {
+        Self {
+            phase: PoseidonPhase::Init,
+        }
+    }
+
+    pub fn push_input<T: BidirectionalStack>(x: Felt, y: Felt, stack: &mut T) {
+        stack.push_front(&y.to_bytes_be()).unwrap();
+        stack.push_front(&x.to_bytes_be()).unwrap();
+    }
+}
+
+impl Default for PoseidonHash {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Executable for PoseidonHash {
+    fn execute<T: BidirectionalStack>(&mut self, stack: &mut T) -> Vec<Vec<u8>> {
+        let x = Felt::from_bytes_be(stack.borrow_front().try_into().unwrap());
+        stack.pop_front();
+        let y = Felt::from_bytes_be(stack.borrow_front().try_into().unwrap());
+        stack.pop_front();
+
+        let state = [x, y, Felt::TWO];
+
+        self.phase = PoseidonPhase::Done;
+
+        vec![HadesPermutation::new(state).to_vec_with_type_tag()]
+    }
+
+    fn is_finished(&mut self) -> bool {
+        self.phase == PoseidonPhase::Done
     }
 }

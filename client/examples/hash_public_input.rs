@@ -4,6 +4,7 @@ use client::{
     initialize_client, interact_with_program_instructions, send_and_confirm_transactions,
     setup_payer, setup_program, ClientError, Config,
 };
+use felt::Felt;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     signature::Keypair,
@@ -11,9 +12,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_system_interface::instruction::create_account;
-use stark::{
-    felt::Felt, stark_proof::HashPublicInputs, swiftness::stark::types::cast_struct_to_slice,
-};
+use stark::{stark_proof::HashPublicInputs, swiftness::stark::types::cast_struct_to_slice};
 use utils::BidirectionalStack;
 use utils::{AccountCast, Executable};
 use verifier::{instruction::VerifierInstruction, state::BidirectionalStackAccount};
@@ -97,62 +96,52 @@ async fn main() -> client::Result<()> {
     // Create inputs for Poseidon hash (using example from test)
 
     let program = vec![
-        Felt::from_hex("0x1").unwrap(),
-        Felt::from_hex("0x28").unwrap(),
-        Felt::from_hex("0x54d3603ed14fb897d0925c48f26330ea9950bd4ca95746dad4f7f09febffe0d")
-            .unwrap(),
-        Felt::from_hex("0x60c63419890752e8e6ad268e965269cc682c1f8e78a314fc25e6ca8bdb30460")
-            .unwrap(),
-        Felt::from_hex("0x1adad196432230def36424f84d0a6c2b69377edfebe3512afece557d718f6f4")
-            .unwrap(),
-        Felt::from_hex("0x10").unwrap(),
-        Felt::from_hex("0x11").unwrap(),
-        Felt::from_hex("0x438a577de394189296b6d1e1f3196cd5e7a0ace493d89a1a9e6aa1c7a118711")
-            .unwrap(),
-        Felt::from_hex("0x21b737ecac6043ce49e7993b4b3c50238573c5d5f6f99dfb5ec9f67da55efd9")
-            .unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0xb2954ff8d3985ab83ce945953c9e91db03e5e6a8841f8f46661ad21d9763f8").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x1").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x3").unwrap(),
-        Felt::from_hex("0x1").unwrap(),
-        Felt::from_hex("0x6").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x7").unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x73d6376a3885b342aebfd86ec0290493e10f6e58e75afd29790b6bcdf82684c")
-            .unwrap(),
-        Felt::from_hex("0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea")
-            .unwrap(),
-        Felt::from_hex("0xa").unwrap(),
-        Felt::from_hex("0xa2475bc66197c751d854ea8c39c6ad9781eb284103bcd856b58e6b500078ac").unwrap(),
-        Felt::from_hex("0xa2475bc66197c751d854ea8c39c6ad9781eb284103bcd856b58e6b500078ac").unwrap(),
-        Felt::from_hex("0x2b4690e832e4dbc7982a01f7c7c369dd85dbfc6993d42f89b789a9e3b315801")
-            .unwrap(),
-        Felt::from_hex("0x18913d6e28e3565eea5").unwrap(),
-        Felt::from_hex("0x18913d6e28e3565db04").unwrap(),
-        Felt::from_hex("0x7b62949c85c6af8a50c11c22927f9302f7a2e40bc93b4c988415915b0f97f09")
-            .unwrap(),
-        Felt::from_hex("0x7c539").unwrap(),
-        Felt::from_hex("0x7d8da").unwrap(),
-        Felt::from_hex("0x6d19755b067c9bc924da6f9907fa7d8128b8d1ae6850d4860fc5e9d5525a29b")
-            .unwrap(),
-        Felt::from_hex("0x2c000000000000003002").unwrap(),
-        Felt::from_hex("0x7dc7899aa655b0aae51eadff6d801a58e97dd99cf4666ee59e704249e51adf2")
-            .unwrap(),
-        Felt::from_hex("0x7dc7899aa655b0aae51eadff6d801a58e97dd99cf4666ee59e704249e51adf2")
-            .unwrap(),
-        Felt::from_hex("0x1").unwrap(),
-        Felt::from_hex("0x1922d2cd8b63eccf66321673234a52126cd9f0ab1bf6298c5abee6ee80c8990")
-            .unwrap(),
-        Felt::from_hex("0x0").unwrap(),
-        Felt::from_hex("0x13ac240a60aa7ae09a00ea9bf47622d31c07642091d461b5f9250c993eca3d5")
-            .unwrap(),
-    ];
+        "0x1",
+        "0x28",
+        "0x54d3603ed14fb897d0925c48f26330ea9950bd4ca95746dad4f7f09febffe0d",
+        "0x60c63419890752e8e6ad268e965269cc682c1f8e78a314fc25e6ca8bdb30460",
+        "0x1adad196432230def36424f84d0a6c2b69377edfebe3512afece557d718f6f4",
+        "0x10",
+        "0x11",
+        "0x438a577de394189296b6d1e1f3196cd5e7a0ace493d89a1a9e6aa1c7a118711",
+        "0x21b737ecac6043ce49e7993b4b3c50238573c5d5f6f99dfb5ec9f67da55efd9",
+        "0x0",
+        "0xb2954ff8d3985ab83ce945953c9e91db03e5e6a8841f8f46661ad21d9763f8",
+        "0x0",
+        "0x1",
+        "0x0",
+        "0x0",
+        "0x3",
+        "0x1",
+        "0x6",
+        "0x0",
+        "0x0",
+        "0x7",
+        "0x0",
+        "0x73d6376a3885b342aebfd86ec0290493e10f6e58e75afd29790b6bcdf82684c",
+        "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
+        "0xa",
+        "0xa2475bc66197c751d854ea8c39c6ad9781eb284103bcd856b58e6b500078ac",
+        "0xa2475bc66197c751d854ea8c39c6ad9781eb284103bcd856b58e6b500078ac",
+        "0x2b4690e832e4dbc7982a01f7c7c369dd85dbfc6993d42f89b789a9e3b315801",
+        "0x18913d6e28e3565eea5",
+        "0x18913d6e28e3565db04",
+        "0x7b62949c85c6af8a50c11c22927f9302f7a2e40bc93b4c988415915b0f97f09",
+        "0x7c539",
+        "0x7d8da",
+        "0x6d19755b067c9bc924da6f9907fa7d8128b8d1ae6850d4860fc5e9d5525a29b",
+        "0x2c000000000000003002",
+        "0x7dc7899aa655b0aae51eadff6d801a58e97dd99cf4666ee59e704249e51adf2",
+        "0x7dc7899aa655b0aae51eadff6d801a58e97dd99cf4666ee59e704249e51adf2",
+        "0x1",
+        "0x1922d2cd8b63eccf66321673234a52126cd9f0ab1bf6298c5abee6ee80c8990",
+        "0x0",
+        "0x13ac240a60aa7ae09a00ea9bf47622d31c07642091d461b5f9250c993eca3d5",
+    ]
+    .iter()
+    .map(|s| Felt::from_hex_unchecked(s))
+    .collect::<Vec<Felt>>();
+
     let output = vec![
         Felt::from_hex("0x1").unwrap(),
         Felt::from_hex("0x2").unwrap(),
