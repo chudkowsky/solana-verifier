@@ -573,7 +573,7 @@ async fn main() -> client::Result<()> {
         "0x3157be835d92a4a5a0b4b46d6f11bf800c0fd1920454d58402612417bee11a8",
         "0x2077c8e77e96c8db5212cf46c32546f1bd9a3e97c63aebccacc1438ffcc9aa7",
     ];
-    
+
     let expected_last_layer_coeffs: Vec<Felt> = expected_last_layer_coeffs
         .iter()
         .map(|hex| Felt::from_hex_unchecked(hex))
