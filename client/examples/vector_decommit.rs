@@ -10,8 +10,13 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_system_interface::instruction::create_account;
-use stark::swiftness::stark::types::cast_struct_to_slice;
-use stark::{stark_proof::stark_commit::StarkCommit, swiftness::stark::types::StarkCommitment};
+use stark::swiftness::commitment::vector::config::Config as VectorConfig;
+use stark::swiftness::commitment::vector::types::Commitment as VectorCommitment;
+use stark::swiftness::stark::types::StarkCommitment;
+use stark::{
+    stark_proof::stark_verify::VectorDecommit,
+    swiftness::stark::types::{cast_struct_to_slice, VerifyVariables},
+};
 use std::{mem::size_of, path::Path};
 use swiftness_proof_parser::{json_parser, transform::TransformTo, StarkProof as StarkProofParser};
 use utils::{
@@ -63,7 +68,7 @@ async fn main() -> client::Result<()> {
         .await?;
     println!("Account created successfully: {signature}");
 
-    println!("\nStarkCommit Task on Solana");
+    println!("\nVectorDecommit Task on Solana");
     println!("========================");
 
     let input = include_str!("../../example_proof/saya.json");
@@ -93,6 +98,7 @@ async fn main() -> client::Result<()> {
     let constraint_coefficients_offset = global_values_offset + global_values_size; // After global_values
     let column_values_offset = constraint_coefficients_offset + 6208; // After constraint_coefficients (N_CONSTRAINTS * 32 = 194 * 32)
     let stark_commitment_offset = column_values_offset + 320; // After column_values (COLUMN_VALUES_SIZE * 32 = 10 * 32)
+    let verify_variables_offset = stark_commitment_offset + stark_commitment_size; // After stark_commitment
 
     println!(
         "  Total account size: {} bytes",
@@ -220,6 +226,24 @@ async fn main() -> client::Result<()> {
         .collect();
     instructions.extend(stark_commitment_chunks);
 
+    let verify_variables_size = std::mem::size_of::<VerifyVariables>();
+    let empty_verify_variables = vec![0u8; verify_variables_size];
+    let verify_variables_chunks: Vec<_> = empty_verify_variables
+        .chunks(CHUNK_SIZE)
+        .enumerate()
+        .map(|(i, chunk)| {
+            Instruction::new_with_borsh(
+                program_id,
+                &VerifierInstruction::SetAccountData(
+                    verify_variables_offset + (i * CHUNK_SIZE),
+                    chunk.to_vec(),
+                ),
+                vec![AccountMeta::new(stack_account.pubkey(), false)],
+            )
+        })
+        .collect();
+    instructions.extend(verify_variables_chunks);
+
     // 8. Set OODS values from proof data (194 * 32 = 6208 bytes) - these are precomputed values needed for verification
     let oods_values = proof_verifier.unsent_commitment.oods_values.clone();
     let oods_values_bytes = cast_struct_to_slice(&mut oods_values.clone()).to_vec();
@@ -312,9 +336,13 @@ async fn main() -> client::Result<()> {
         "    - stark_commitment ({} bytes) - will be computed during execution",
         stark_commitment_size
     );
+    println!(
+        "    - verify_variables ({} bytes) - will be computed during execution",
+        verify_variables_size
+    );
     println!("  ✓ Proof data set from JSON file");
     println!("  ✓ OODS values set from proof data");
-    println!("  ✓ Account ready for StarkCommit task execution");
+    println!("  ✓ Account ready for VectorDecommit task execution");
 
     // Send transactions
     let mut transactions = Vec::new();
@@ -330,10 +358,275 @@ async fn main() -> client::Result<()> {
     send_and_confirm_transactions(&client, &transactions).await?;
     println!("All data set successfully");
 
-    // Push the StarkCommit task to the stack
-    let stark_commit_task = StarkCommit::new();
+    // Push authentications data
+    let authentications = vec![
+        Felt::from_hex("0x2e9de49846b184d454c30e3b4854167583093da20c5ddef5e3ba2885524d006")
+            .unwrap(),
+        Felt::from_hex("0xf3fb7305323c5fa68ad49a509a9c470e2396af41bfd2c9cf86228504436a3").unwrap(),
+        Felt::from_hex("0x9dc63f0ac48b17304af16748798567f21bb25f8cbeaa48a462a74b3e0c5d79").unwrap(),
+        Felt::from_hex("0x5d35649398cb24bc00458a32d01c61a8450c7a30cc5b95043f4e2b30df01360")
+            .unwrap(),
+        Felt::from_hex("0x4493f60ea79053f2a96439d50d6335fd35e13599190e1656b724eacac658e37")
+            .unwrap(),
+        Felt::from_hex("0x7f58b9c9c333dc5b31e3ee5e8a98d8cab0c84b3a886042b279dc2f2c408d92b")
+            .unwrap(),
+        Felt::from_hex("0x349a976371b7aef1b1992908fefa423b9e5d4d0be58092ff6e5ead51ecf1ca4")
+            .unwrap(),
+        Felt::from_hex("0x3ffacb144085ca3c572a314c6bb0e01b253827231285fba4084e3b624438ace")
+            .unwrap(),
+        Felt::from_hex("0x55d22158d5bfad58ddf2633f24a3fae4642afbcea1cb9155e8b54c2a432fbfd")
+            .unwrap(),
+        Felt::from_hex("0x63c1598794322bd8f1686e89c94dc60b0bb4f7940b5427af72187091e71ef63")
+            .unwrap(),
+        Felt::from_hex("0xebaa8e9ab29cfba43cdc1f2cacb9cbc08b2cb17317fed571718e5e66b42488").unwrap(),
+        Felt::from_hex("0xa31370f89d85108378244beeea13a2b2c379d16cde55c2fcd674f4296ddabe").unwrap(),
+        Felt::from_hex("0x4285440535fff0ba31e970a1948a09951ff740c91c6d6cf4635527877c55ff1")
+            .unwrap(),
+        Felt::from_hex("0x49eb1420843ac1a3178010c314906d28f6118e8b36620ce4469dffca27a047d")
+            .unwrap(),
+        Felt::from_hex("0x4e65200356931c3ea1e20e087b5bff96ba268239ed2e2f784def64f5760418d")
+            .unwrap(),
+        Felt::from_hex("0x103809d798aab5452c77f42bc4c8fcfcfa9e6efdfe24077e41928a52daf1dc8")
+            .unwrap(),
+        Felt::from_hex("0x4253b3498a013d4473d43686f9e509be7541daf00afae0d7216f7019bc75d8f")
+            .unwrap(),
+        Felt::from_hex("0x689297a643de6bd5955e314f94367af901eac67eeef51a52e40c0205cf8023").unwrap(),
+        Felt::from_hex("0x2ca9dcef95643af6ec5ee055d1a05720f2e3f5e6226de5b206c4a78482963b8")
+            .unwrap(),
+        Felt::from_hex("0x72fbddae565406f284bb4dd89623c29c821b6187dd7dfc292dbbddd4094077").unwrap(),
+        Felt::from_hex("0x30e5ea3c2280db52829548ae99a71faa030b4e4bb87679b427f76c594aaa05a")
+            .unwrap(),
+        Felt::from_hex("0x45ba1eda942e1085af97db6e189996903cfa09db90e52b4589e16df981f1601")
+            .unwrap(),
+        Felt::from_hex("0x8c36a69368bea30f8ecf7de3e461a03b0cdd004ae08a3d44281b093fc63f2").unwrap(),
+        Felt::from_hex("0x5c7194878dcb2d4ba69da97c1a878f96dd78d97612c882ba7179bafe92a6a90")
+            .unwrap(),
+        Felt::from_hex("0x20c37b922bb713f2b6772a9ae014715f418fe5da4d53fe9b00cc2fe851f233a")
+            .unwrap(),
+        Felt::from_hex("0x3a7e7c684904e82bf0be54290299b6d83f448bac5c6e9ea4d1cd1e844eccb70")
+            .unwrap(),
+        Felt::from_hex("0x1ebbb30dbcb3b4fd0da33cf84d456101bbe9147b1a65507901715b3490649c6")
+            .unwrap(),
+        Felt::from_hex("0x1409c71e0dcf4a620856775508ce1b4c7d55e4229ac5fd41a3f8ecee097eb39")
+            .unwrap(),
+        Felt::from_hex("0x18cdf340cc64b00bf134c9e55396f79eddfbda8e2090542380c5c4967ee790b")
+            .unwrap(),
+        Felt::from_hex("0x18add43c036948c8d7e767ae22056e1f5f1a9d1daad6b9a8f2e7da996f4a1c2")
+            .unwrap(),
+        Felt::from_hex("0x30e7224d1c98b75e019b60bbe320e358ef35b1adaf12aad044744e640c2a4d").unwrap(),
+        Felt::from_hex("0x25a8793c928ecacb2e84802830fa101fb3839455957921ed7bcb39549b1f80").unwrap(),
+        Felt::from_hex("0x65dd0f91032712c4a8b1b5c35cd6ebdb654efb5e56085a2eef0def4bde4d066")
+            .unwrap(),
+        Felt::from_hex("0x4a50e2b14315602b8c97c9d2304db828806c37b751203bb7dad534d7b45d21d")
+            .unwrap(),
+        Felt::from_hex("0x5afdcfcf55c58dbf5ad58b17f16514da8dac3e69501fb399c30333ab3050c3").unwrap(),
+        Felt::from_hex("0x20f5ecf9107f9d3e33f462948d955b70d5ec5573a679ae548998c41b5eec730")
+            .unwrap(),
+        Felt::from_hex("0x1f70d9f6c203312c6aabf4d191cd4cbc68f8c92bebf561cb8e20ce9fc07ef55")
+            .unwrap(),
+        Felt::from_hex("0x14e877449f7005ee874020d6759ce808345e20c3fae4a62e7f12c2c457f71ec")
+            .unwrap(),
+        Felt::from_hex("0x780b4537e060e0f1e88ca7337d5d43ef2d4bbb4b48e4899c55ea9a5e7120b5a")
+            .unwrap(),
+        Felt::from_hex("0x608a4544987ef3599043e9a8b4aa0598f8d71dee81e46104ca6ac186e2c8044")
+            .unwrap(),
+        Felt::from_hex("0x58cbd95dd12e8761a99011f0ae970fe73e03b7d7e43b614510ee7a6a2efe7d3")
+            .unwrap(),
+        Felt::from_hex("0x5c533c05cbf2af6d819bdf23272e567b7a49c2c2bd799201ed0e32ce9ff092b")
+            .unwrap(),
+        Felt::from_hex("0x342bb671b7d40601d4031045068abfbf2c578f7e4a380e180dbf2b0c8fef6").unwrap(),
+        Felt::from_hex("0x2da269eab1f7e247c0caf3bcac1bb0e5e7abacde34bc54a9de3e0a82a36cfff")
+            .unwrap(),
+        Felt::from_hex("0x117cc37e078928598470cfe43e1b6c66c6365d1cf601bc5daf1055a0f8210db")
+            .unwrap(),
+        Felt::from_hex("0x4640956c2daa074399825b0404260bee0898f9d24b1c807f5c43159e7a9b019")
+            .unwrap(),
+        Felt::from_hex("0x1da36b1fb01d0470d48c3eb4c92263eadb7b58c8829f2ee77e3287a6e39c902")
+            .unwrap(),
+        Felt::from_hex("0x78dac96e95e86f83b4a426bd0505d84b5ea967822d0fca9f3bd28331164d94b")
+            .unwrap(),
+        Felt::from_hex("0x1d50c82e363d8e7fa2641c9f2137b99832372d1879a2ee02b2c824a4cb620dd")
+            .unwrap(),
+        Felt::from_hex("0x2fd5a64db6093c9efda84ba327a43043e41310626073e58331c9f2f9f2db20f")
+            .unwrap(),
+    ];
 
-    println!("Using StarkCommit with TYPE_TAG: {}", StarkCommit::TYPE_TAG);
+    // Push authentications data
+    for auth in authentications.iter().rev() {
+        let push_auth_ix = Instruction::new_with_borsh(
+            program_id,
+            &VerifierInstruction::PushData(auth.to_bytes_be().to_vec()),
+            vec![AccountMeta::new(stack_account.pubkey(), false)],
+        );
+
+        let _signature = interact_with_program_instructions(
+            &client,
+            &payer,
+            &program_id,
+            &stack_account,
+            &[push_auth_ix],
+        )
+        .await?;
+    }
+
+    // Push authentications length
+    let authentications_len = Felt::from(authentications.len());
+    let push_auth_len_ix = Instruction::new_with_borsh(
+        program_id,
+        &VerifierInstruction::PushData(authentications_len.to_bytes_be().to_vec()),
+        vec![AccountMeta::new(stack_account.pubkey(), false)],
+    );
+
+    let _signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
+        &[push_auth_len_ix],
+    )
+    .await?;
+
+    // Original queries from the test
+    let queries = vec![
+        (
+            Felt::from_hex("0x73").unwrap(),
+            Felt::from_hex("0x12346ea425a6aebc8c323a401410cc325aabaf99b54e600a7271f146488aa2d")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0xa5").unwrap(),
+            Felt::from_hex("0x1aabe006a27bfa5f93bde192ff552adbef87058e62546c831ed14ce94866ac1")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0xb0").unwrap(),
+            Felt::from_hex("0x7205a2b5f5f403b8053b4e4ac65e2a484c007f6d118524fe28b7cdf2a56bb8a")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0xf8").unwrap(),
+            Felt::from_hex("0x5d49462d844a3f203c59d39fa005cbe153c78e6ac831987f19c0d6dfae38fad")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x115").unwrap(),
+            Felt::from_hex("0x53d21587a9cb08d1b9402a4b8c2a9d37942b26963936200fea3122eaaf870b1")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x11c").unwrap(),
+            Felt::from_hex("0x7c3355a75f6b36a95068b68d48e7539cd97531b7478e2cf7d2dc85b32bafc66")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x12f").unwrap(),
+            Felt::from_hex("0xb6f3a522577229ac26f12df90daaf376afbd960ee4b0ab07f270bf9c5da56a")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x13c").unwrap(),
+            Felt::from_hex("0x174cfc44eb57da0eda6ae9407db71c5144940f05ef51f858bc8e229d15703e2")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x153").unwrap(),
+            Felt::from_hex("0x2220da78b33e155482bdf0534dc30fc17fe059a7b9e30f710ee2681a8151484")
+                .unwrap(),
+        ),
+        (
+            Felt::from_hex("0x1f4").unwrap(),
+            Felt::from_hex("0x566b71a4f84556a3816d911c5dfb45f75cc962d9829acd0dd56e81517cc73b8")
+                .unwrap(),
+        ),
+    ];
+
+    // Push queries data
+    for (query_index, query_value) in queries.iter().rev() {
+        let push_query_value_ix = Instruction::new_with_borsh(
+            program_id,
+            &VerifierInstruction::PushData(query_value.to_bytes_be().to_vec()),
+            vec![AccountMeta::new(stack_account.pubkey(), false)],
+        );
+
+        let _signature = interact_with_program_instructions(
+            &client,
+            &payer,
+            &program_id,
+            &stack_account,
+            &[push_query_value_ix],
+        )
+        .await?;
+
+        let push_query_index_ix = Instruction::new_with_borsh(
+            program_id,
+            &VerifierInstruction::PushData(query_index.to_bytes_be().to_vec()),
+            vec![AccountMeta::new(stack_account.pubkey(), false)],
+        );
+
+        let _signature = interact_with_program_instructions(
+            &client,
+            &payer,
+            &program_id,
+            &stack_account,
+            &[push_query_index_ix],
+        )
+        .await?;
+    }
+
+    // Push queries length
+    let queries_len = Felt::from(queries.len());
+    let push_queries_len_ix = Instruction::new_with_borsh(
+        program_id,
+        &VerifierInstruction::PushData(queries_len.to_bytes_be().to_vec()),
+        vec![AccountMeta::new(stack_account.pubkey(), false)],
+    );
+
+    let _signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
+        &[push_queries_len_ix],
+    )
+    .await?;
+
+    // Create and push vector commitment first
+    let commitment_hash =
+        Felt::from_hex("0x1e9b0fa29ebe52b9c9a43a1d44e555ce42da3199370134d758735bfe9f40269")
+            .unwrap();
+    let height = Felt::from_hex("0x9").unwrap(); // 9
+    let n_verifier_friendly_layers = Felt::from_hex("0x64").unwrap(); // 100
+
+    // Create VectorCommitment and use push_to_stack method
+    let vector_config = VectorConfig {
+        height,
+        n_verifier_friendly_commitment_layers: n_verifier_friendly_layers,
+    };
+    let vector_commitment = VectorCommitment::new(vector_config, commitment_hash);
+    let vector_commitment_bytes = cast_struct_to_slice(&vector_commitment);
+
+    let commitment_bytes_ix = Instruction::new_with_borsh(
+        program_id,
+        &VerifierInstruction::PushData(vector_commitment_bytes.to_vec()),
+        vec![AccountMeta::new(stack_account.pubkey(), false)],
+    );
+
+    let _signature = interact_with_program_instructions(
+        &client,
+        &payer,
+        &program_id,
+        &stack_account,
+        &[commitment_bytes_ix],
+    )
+    .await?;
+
+    // Push the VectorDecommit task to the stack
+    let stark_commit_task = VectorDecommit::new();
+
+    println!(
+        "Using VectorDecommit with TYPE_TAG: {}",
+        VectorDecommit::TYPE_TAG
+    );
 
     let push_task_ix = Instruction::new_with_borsh(
         program_id,
@@ -341,80 +634,12 @@ async fn main() -> client::Result<()> {
         vec![AccountMeta::new(stack_account.pubkey(), false)],
     );
 
-    let _ = interact_with_program_instructions(
+    let _signature = interact_with_program_instructions(
         &client,
         &payer,
         &program_id,
         &stack_account,
         &[push_task_ix],
-    )
-    .await?;
-
-    let trace_generator =
-        Felt::from_hex("0x57a797181c06d8427145cb66056f032751615d8617c5468258e96d2bb6422f9")
-            .unwrap();
-    let push_trace_generator_ix = Instruction::new_with_borsh(
-        program_id,
-        &VerifierInstruction::PushData(trace_generator.to_bytes_be().to_vec()),
-        vec![AccountMeta::new(stack_account.pubkey(), false)],
-    );
-
-    let _ = interact_with_program_instructions(
-        &client,
-        &payer,
-        &program_id,
-        &stack_account,
-        &[push_trace_generator_ix],
-    )
-    .await?;
-
-    let trace_domain_size = Felt::from_hex("0x10000000").unwrap();
-    let push_trace_domain_size_ix = Instruction::new_with_borsh(
-        program_id,
-        &VerifierInstruction::PushData(trace_domain_size.to_bytes_be().to_vec()),
-        vec![AccountMeta::new(stack_account.pubkey(), false)],
-    );
-
-    let _ = interact_with_program_instructions(
-        &client,
-        &payer,
-        &program_id,
-        &stack_account,
-        &[push_trace_domain_size_ix],
-    )
-    .await?;
-
-    let digest =
-        Felt::from_hex("0x59496b8e649ff03c8e9f739e141bd82653fccb2fb1b1a51a71760ea3813ea35")
-            .unwrap();
-    let push_digest_ix = Instruction::new_with_borsh(
-        program_id,
-        &VerifierInstruction::PushData(digest.to_bytes_be().to_vec()),
-        vec![AccountMeta::new(stack_account.pubkey(), false)],
-    );
-
-    let _ = interact_with_program_instructions(
-        &client,
-        &payer,
-        &program_id,
-        &stack_account,
-        &[push_digest_ix],
-    )
-    .await?;
-
-    let counter = Felt::from_hex("0x0").unwrap();
-    let push_counter_ix = Instruction::new_with_borsh(
-        program_id,
-        &VerifierInstruction::PushData(counter.to_bytes_be().to_vec()),
-        vec![AccountMeta::new(stack_account.pubkey(), false)],
-    );
-
-    let _ = interact_with_program_instructions(
-        &client,
-        &payer,
-        &program_id,
-        &stack_account,
-        &[push_counter_ix],
     )
     .await?;
 
@@ -469,147 +694,13 @@ async fn main() -> client::Result<()> {
     // Read the result from the account and verify it matches expected values
     println!("\nVerifying results against expected values...");
 
-    // Get the computed stark_commitment from the account
-    let computed_stark_commitment = &stack.stark_commitment;
-    println!("Computed stark_commitment: {computed_stark_commitment:?}");
-    // Expected values from stark_commitment.rs fixtures
-    // These are the same values used in the unit test
-    let expected_traces_original_hash = Felt::from_hex_unchecked(
-        "0x305f1ee7c0b38a403b2fa7ec86a3d11c8a174891194a2c656147268b59e876d",
-    );
-    let expected_traces_interaction_hash = Felt::from_hex_unchecked(
-        "0x6d41514e4a6e39f5b4e5f18f234525df1d2d92393c11ce11bd885615c88406",
-    );
-    let expected_composition_hash = Felt::from_hex_unchecked(
-        "0x112367c6fef0963c09cd918c7d31159ae7effbf9e16ffe7cac15b7bb4074373",
-    );
-    let expected_interaction_after_composition = Felt::from_hex_unchecked(
-        "0x49185430497be4bd990699e70b3b91b25c0dd22d5cd436dbf23f364136368bc",
-    );
-
-    let expected_last_layer_coeffs = vec![
-        "0x66c796d3d02b79f1651070cb45f0bf66555e52586bde97db07d3587acebcb1e",
-        "0x5a65f0a67b296d6fde75095e7bf9bb15147cdf46dac056a3515f3211c755a84",
-        "0x2a86628c832b25e8f7c66db9cd8e75acb17c032f73184e794b314d5b6768f16",
-        "0x18f8e25f5b8a67d4a815542cfc1af6798f1e6ceca9476fb1e116e88c3e44d90",
-        "0x78b507b81e1b5c348589e3d1df85c2dd43a522949fd5aef31e37365e230c234",
-        "0x24fa994cd55659e2d7f0112b1cee5c7321d0a47443422da51b4e607eba4b36c",
-        "0x4f8df7df167ee1dec27c283cb96c4c9ff85c62416f61e197fa517dfa78cde51",
-        "0x3a061e33f6af1045e247b390d5b71b8c3cd74d7936d85e1dab7ec1079b1f723",
-        "0x1fd53dff2886b9d6dd8020d63f8e07063fa051a1fead92975ac95887f62296f",
-        "0x6c2172d15248be94f9b5fb457a164ec6db6ed63fb84c0ab154f05a45ae1a6b0",
-        "0x3e18d61a269faa393ccd03bb2b64364065b7af2f529d83bbe13bad4d819fe3",
-        "0x4741100133289117afd8d7f75191b8cdb60674b5e46fe337c590c1fe9d589e1",
-        "0x4ce865332e2742b7294844916d0a5592adac0f2e574f7c726dd9ba0d16166",
-        "0x521b6743607208f1e573da338e0528176563d60b458262ebd3bea3493140ef7",
-        "0x24f45c1ebcfbf13c772f32b5aa48dbb0ca8abdaeb8338ac5e302b5674f4f7b3",
-        "0x19ff856bb023150b68993d3c59598f209084c2b05d1a49b9bf0ffdd58319612",
-        "0x5837d69ead25595f8729bd17a0723bd410878ecb7b0d16ac0a2f96019761a41",
-        "0x1ca31d4d9b77c07de0be1cab20657388978365f24ff58254928f319419be580",
-        "0x668e682b2116ff3e6ced4e554c0787781113a49a249876a00396bd06c356f88",
-        "0x617863095a0f5af592ea321e1e3d26739aebef5ad2fda50cc0e5fc3e3a399bb",
-        "0x2924f13b449fec4aa26b53e38ee1b422c17cfb1de4fe8f875f696d8e313e142",
-        "0x6a685173638b6009f043aee321a4d71c39a6b77793edc1c08e48b672254d8ad",
-        "0x6118f485eb29bbe3d5ae3e4834295f35a3cabbbee8e70ae3ff245f8ef9a5598",
-        "0xaef070e0b90f861871b1f3f499439b517718fe8d43bace6d55a90e69f154f7",
-        "0x57aadf081d14036422f6112b638b6a62218d75940542424624a3ed87b8c8d70",
-        "0x43817969bea69628097471048d3342b2ce2df90e83cd0705a4bbbdc4ad9a26f",
-        "0x19fadb1a38f3bf87a67758ce80ca095ed279bbf13627e173c395a52e4a0beec",
-        "0x26717f7a71785c0442416461ecf9b8692d04b2c762e2bbde8761606e5088231",
-        "0x652c1e32e09ba9fddbb602bf2c89d0a09aecb2aa6153b55b1ea73da7434d43e",
-        "0x7cfde088e2b31a36da73203d84afb491729d25075e10e4a43f1eea3cfddff95",
-        "0x2cd6701557574e1609c88e1a897851afd384cad0562d506422b89229fa2571b",
-        "0x1ef21bfa917b63aad98765bb9eab0b62d893c7da9e930a558ce2803c30a6965",
-        "0x737175bfaad9bec33e9b180d1e2f378d895b521e76dc0f2f2df9d274ad8278c",
-        "0x4fc88bea560a9c57e9dd0acd39f1454b38b768019f053d6e34a5c9c29f7154a",
-        "0x5a0a6e245e1bef2345106ca153caa41cc45569a2c2e763a3b714ca0e0fe948f",
-        "0x660d7d653c5f457ad83402f824d5ed801c9bf31ce19ea7c1fce003bacdbbbb9",
-        "0x46c77c3d74a2c3053f7cf212eebb5267414d9b79d13cbdc4bae750d1ef18855",
-        "0x716128901707f48b66a45f6486e820bf1d8197febe9e54d510c740786317da0",
-        "0x5813d095b76f9696142adce747f1092da9d7f4b4c78ec4f80f4677acbe0895f",
-        "0x23805037d788d418797cc464397b2fde00842c21eb5766fcaab215e212432f0",
-        "0x12525b04e5a921bee8888521e61a9560be03195655074e9022b09a25e543d1f",
-        "0x4c1c2994d16395a519f7477bde0052b8f2dcfa521fc8ba6de837a8f23711b47",
-        "0x2cf2d39ee47800e9d7f4fb662a8ec9ee4510dcb114a4ab6b5fcd9188f0bb0d9",
-        "0x25601c3d21d3768ed8e588f83428196799e75b6ebbb85ca8886549ad4258963",
-        "0x5d594bf05fe3020e30c58b949bfed2f14e946bb6564a6f7f7003f91fcbfe1c9",
-        "0x12736ff70283026b7a4e279f492ffa1f0b6433209e96b439d1728fed4429c26",
-        "0x9e4ef6f319e6d61c5ada1c0c01b85f705da3251e9c0038791995a1b4a9672b",
-        "0x34d0796fed079fe2eee157f30bda10630d34158bb45aa56ac88427fe70706b9",
-        "0x44e64282f5f87a93472b1ebf9d2a63e389708640ec1c2480c643c6aba386fd5",
-        "0x3f1fb9576bf9060f5c3c197018e4b4229a5b1427da821b1d23b509e16d28376",
-        "0x6fe2b5886bdfd06eb1a2a33e99dda8229d6d11d9df2815d7dcfe53230ea42aa",
-        "0x6de15d80bb2106afdff4e63f268e38cf0c75c7a188ea249987eac7da7cf9e75",
-        "0xce3f50c606621b881811f32242dd76e6f855601e7fa7a307d3bdae78fc7709",
-        "0x7a8ca41b50fce78b56de444fb90ad2a1c5b021a5e65f1535ad3e2bfd82ac35e",
-        "0x1812ea75c5b6bd574a0bf536f6bed6edaa6148e785b9615c6bfa9ce105c2996",
-        "0x17e9f49792461fb9185124566661cd1977d8ac8715b468840e09dd4aec18994",
-        "0x113229d548d7a1169f3a863d39f5f49b0d62268c57eb22de14c0fec227e22d9",
-        "0x3a7cbb5ffbdfda6ec423c778beb40e092a8158713a7fbc1349edd835d7205f9",
-        "0x37429f0c3c16caa393a37cf022d8026563e550682a70bd7cfb74f0eb0fbe641",
-        "0x779f6680f64e3a5d2ab847b788b28bc29da9dbc90d2fd9a779e8712b07cc153",
-        "0x2f6fc641bb2fda367785f91ce33398d61b804b5454aba1cf1d0a74121b84c15",
-        "0x3e7fcd7510327a6e70fc72020c1214cbe30a9331a44c7ddddded98cca785708",
-        "0x3157be835d92a4a5a0b4b46d6f11bf800c0fd1920454d58402612417bee11a8",
-        "0x2077c8e77e96c8db5212cf46c32546f1bd9a3e97c63aebccacc1438ffcc9aa7",
-    ];
-
-    let expected_last_layer_coeffs: Vec<Felt> = expected_last_layer_coeffs
-        .iter()
-        .map(|hex| Felt::from_hex_unchecked(hex))
-        .collect();
-
-    println!("Verifying commitment hashes...");
-    // Verify traces commitments
-    assert_eq!(
-        computed_stark_commitment
-            .traces
-            .original
-            .vector_commitment
-            .commitment_hash,
-        expected_traces_original_hash,
-        "Traces original commitment hash mismatch"
-    );
-
-    assert_eq!(
-        computed_stark_commitment
-            .traces
-            .interaction
-            .vector_commitment
-            .commitment_hash,
-        expected_traces_interaction_hash,
-        "Traces interaction commitment hash mismatch"
-    );
-
-    // Verify composition commitment
-    assert_eq!(
-        computed_stark_commitment
-            .composition
-            .vector_commitment
-            .commitment_hash,
-        expected_composition_hash,
-        "Composition commitment hash mismatch"
-    );
-
-    // Verify interaction after composition
-    assert_eq!(
-        computed_stark_commitment.interaction_after_composition,
-        expected_interaction_after_composition,
-        "Interaction after composition mismatch"
-    );
-
-    assert_eq!(
-        computed_stark_commitment.fri.last_layer_coefficients, expected_last_layer_coeffs,
-        "FRI last layer coefficients mismatch"
-    );
-
     // Check that stack is empty (task completed successfully)
     assert_eq!(stack.front_index, 0, "Stack should be empty");
     assert_eq!(stack.back_index, 65536, "Stack should be empty");
 
     println!("✓ All verifications passed! Results match expected values from stark_commitment.rs");
     println!("✓ Stack is empty - task completed successfully");
-    println!("✓ StarkCommit test completed successfully on Solana!");
+    println!("✓ VectorDecommit test completed successfully on Solana!");
 
     Ok(())
 }

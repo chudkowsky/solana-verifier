@@ -1,8 +1,7 @@
 use crate::poseidon::PoseidonHash;
 use crate::stark_proof::PoseidonHashMany;
-use crate::swiftness::stark::types::StarkProof;
-// use lambdaworks_math::traits::ByteConversion;
 use crate::swiftness::stark::types::StarkCommitment;
+use crate::swiftness::stark::types::StarkProof;
 use felt::Felt;
 use utils::global_values::InteractionElements;
 use utils::StarkCommitmentTrait;
@@ -51,7 +50,7 @@ impl Executable for TracesCommit {
             TracesCommitStep::ReadOriginalCommitment => {
                 let proof: &StarkProof = stack.get_proof_reference();
 
-                let unsent_commitment = proof.unsent_commitment.traces;
+                let unsent_commitment = &proof.unsent_commitment.traces;
 
                 stack
                     .push_front(&unsent_commitment.original.to_bytes_be())
@@ -113,7 +112,7 @@ impl Executable for TracesCommit {
                 };
 
                 let proof: &StarkProof = stack.get_proof_reference();
-                let interaction_commitment = proof.unsent_commitment.traces.interaction;
+                let interaction_commitment = &proof.unsent_commitment.traces.interaction;
 
                 //for vector commit
                 stack

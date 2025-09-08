@@ -8,10 +8,9 @@ pub mod table_commit;
 pub mod traces_commit;
 pub mod verify_oods;
 
+use crate::poseidon::PoseidonHashMany;
 use crate::swiftness::air::recursive_with_poseidon::Layout;
 use crate::swiftness::air::recursive_with_poseidon::LayoutTrait;
-use crate::swiftness::commitment::table::config::Config as ConfigTable;
-use crate::swiftness::commitment::table::types::Commitment as CommitmentTable;
 use crate::swiftness::stark::types::StarkCommitment;
 use crate::swiftness::stark::types::StarkProof;
 use crate::swiftness::transcript::{TranscriptRandomFelt, TranscriptReadFeltVector};
@@ -107,6 +106,112 @@ impl Executable for StarkCommit {
                 self.oods_coefficients_count =
                     (Layout::MASK_SIZE + Layout::CONSTRAINT_DEGREE) as u32;
 
+                let (stark_commitment, proof) =
+                    stack.get_stark_commitment_and_proof_mut::<StarkCommitment<InteractionElements>, StarkProof>();
+
+                // Update configs in StarkCommitment with values from StarkConfig
+                stark_commitment.traces.original.config = proof.config.traces.original;
+                stark_commitment
+                    .traces
+                    .original
+                    .vector_commitment
+                    .config
+                    .height = proof.config.traces.original.vector.height;
+                stark_commitment
+                    .traces
+                    .original
+                    .vector_commitment
+                    .config
+                    .n_verifier_friendly_commitment_layers = proof
+                    .config
+                    .traces
+                    .original
+                    .vector
+                    .n_verifier_friendly_commitment_layers;
+                stark_commitment.traces.interaction.config = proof.config.traces.interaction;
+                stark_commitment
+                    .traces
+                    .interaction
+                    .vector_commitment
+                    .config
+                    .height = proof.config.traces.interaction.vector.height;
+                stark_commitment
+                    .traces
+                    .interaction
+                    .vector_commitment
+                    .config
+                    .n_verifier_friendly_commitment_layers = proof
+                    .config
+                    .traces
+                    .interaction
+                    .vector
+                    .n_verifier_friendly_commitment_layers;
+                stark_commitment.composition.config = proof.config.composition;
+                stark_commitment.composition.config.n_columns = proof.config.composition.n_columns;
+                stark_commitment.composition.config.vector.height =
+                    proof.config.composition.vector.height;
+                stark_commitment
+                    .composition
+                    .config
+                    .vector
+                    .n_verifier_friendly_commitment_layers = proof
+                    .config
+                    .composition
+                    .vector
+                    .n_verifier_friendly_commitment_layers;
+                stark_commitment.composition.vector_commitment.config.height =
+                    proof.config.composition.vector.height;
+                stark_commitment
+                    .composition
+                    .vector_commitment
+                    .config
+                    .n_verifier_friendly_commitment_layers = proof
+                    .config
+                    .composition
+                    .vector
+                    .n_verifier_friendly_commitment_layers;
+                stark_commitment.fri.config = proof.config.fri;
+
+                // Initialize inner_layers with the correct number of elements
+                let n_inner_layers = proof.config.fri.inner_layers.len();
+                // Set the size and get mutable slice to initialize
+                stark_commitment
+                    .fri
+                    .inner_layers
+                    .to_size_uninitialized(n_inner_layers);
+
+                for i in 0..stark_commitment.fri.inner_layers.len() {
+                    let target_layer = stark_commitment.fri.inner_layers.at_mut(i);
+                    let source_layer = &proof.config.fri.inner_layers.at(i);
+
+                    target_layer.config.n_columns = source_layer.n_columns;
+                    target_layer.config.vector.height = source_layer.vector.height;
+                    target_layer
+                        .config
+                        .vector
+                        .n_verifier_friendly_commitment_layers =
+                        source_layer.vector.n_verifier_friendly_commitment_layers;
+
+                    target_layer.vector_commitment.config.height = source_layer.vector.height;
+                    target_layer
+                        .vector_commitment
+                        .config
+                        .n_verifier_friendly_commitment_layers =
+                        source_layer.vector.n_verifier_friendly_commitment_layers;
+                }
+
+                for i in 0..stark_commitment.fri.config.inner_layers.len() {
+                    let target_layer = stark_commitment.fri.config.inner_layers.at_mut(i);
+                    let source_layer = &proof.config.fri.inner_layers.at(i);
+
+                    target_layer.n_columns = source_layer.n_columns;
+
+                    target_layer.vector.height = source_layer.vector.height;
+
+                    target_layer.vector.n_verifier_friendly_commitment_layers =
+                        source_layer.vector.n_verifier_friendly_commitment_layers;
+                }
+
                 self.step = StarkCommitStep::TracesCommit;
                 vec![]
             }
@@ -144,8 +249,7 @@ impl Executable for StarkCommit {
                     .vector_commitment
                     .commitment_hash = unsent_commitment.composition;
 
-                stark_commitment.oods_values =
-                    proof.unsent_commitment.oods_values.as_slice().to_vec();
+                stark_commitment.oods_values = proof.unsent_commitment.oods_values;
 
                 self.step = StarkCommitStep::GenerateCompositionAlpha;
 
@@ -244,18 +348,15 @@ impl Executable for StarkCommit {
                 self.current_transcript_counter = updated_counter;
 
                 let proof: &StarkProof = stack.get_proof_reference();
-                let oods_values = proof.unsent_commitment.oods_values.as_slice().to_vec();
+                let oods_values = proof.unsent_commitment.oods_values.as_slice();
+                let oods_values_len = oods_values.len();
 
-                // Use TranscriptReadFeltVector to implement read_felt_vector_from_prover
-                // This will: hash(digest + 1, oods_values), update digest, reset counter
-                TranscriptReadFeltVector::push_input(
-                    self.current_transcript_digest,
-                    &oods_values,
-                    stack,
-                );
+                let mut inputs = vec![self.current_transcript_digest + Felt::ONE];
+                inputs.extend_from_slice(oods_values);
+                PoseidonHashMany::push_input(&inputs, stack);
 
                 self.step = StarkCommitStep::VerifyOods;
-                vec![TranscriptReadFeltVector::new(oods_values.len()).to_vec_with_type_tag()]
+                vec![TranscriptReadFeltVector::new(oods_values_len).to_vec_with_type_tag()]
             }
 
             StarkCommitStep::VerifyOods => {
@@ -302,25 +403,27 @@ impl Executable for StarkCommit {
                 stack.push_front(&oods_alpha.to_bytes_be()).unwrap();
                 stack.push_front(&Felt::ONE.to_bytes_be()).unwrap();
 
+                let stark_commitment =
+                    stack.get_stark_commitment_mut::<StarkCommitment<InteractionElements>>();
+
+                stark_commitment
+                    .interaction_after_oods
+                    .to_size_uninitialized(self.oods_coefficients_count as usize);
+
                 self.step = StarkCommitStep::FriCommit;
 
                 vec![PowersArray::new(self.oods_coefficients_count).to_vec_with_type_tag()]
             }
 
             StarkCommitStep::FriCommit => {
-                for _ in 0..self.oods_coefficients_count {
+                for i in (0..self.oods_coefficients_count).rev() {
                     let oods_coefficient = Felt::from_bytes_be_slice(stack.borrow_front());
                     stack.pop_front();
+
                     let stark_commitment =
                         stack.get_stark_commitment_mut::<StarkCommitment<InteractionElements>>();
-                    stark_commitment
-                        .interaction_after_oods
-                        .push(oods_coefficient);
+                    *stark_commitment.interaction_after_oods.at_mut(i as usize) = oods_coefficient;
                 }
-
-                let stark_commitment =
-                    stack.get_stark_commitment_mut::<StarkCommitment<InteractionElements>>();
-                stark_commitment.interaction_after_oods.reverse();
 
                 stack
                     .push_front(&self.current_transcript_digest.to_bytes_be())

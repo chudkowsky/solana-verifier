@@ -125,10 +125,16 @@ fn test_stark_commit_with_reference_values() {
     );
     for i in 0..expected_stark_commitment.fri.inner_layers.len() {
         assert_eq!(
-            stark_commitment.fri.inner_layers[i]
+            stark_commitment
+                .fri
+                .inner_layers
+                .at(i)
                 .vector_commitment
                 .commitment_hash,
-            expected_stark_commitment.fri.inner_layers[i]
+            expected_stark_commitment
+                .fri
+                .inner_layers
+                .at(i)
                 .vector_commitment
                 .commitment_hash
         );

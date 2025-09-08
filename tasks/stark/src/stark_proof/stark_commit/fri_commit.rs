@@ -1,5 +1,3 @@
-use crate::stark_proof::stark_commit::CommitmentTable;
-use crate::stark_proof::stark_commit::ConfigTable;
 use crate::stark_proof::stark_commit::{TableCommit, TranscriptReadFeltVector};
 use crate::swiftness::stark::types::{StarkCommitment, StarkProof};
 use crate::swiftness::transcript::TranscriptRandomFelt;
@@ -92,19 +90,10 @@ impl Executable for FriCommit {
                         .inner_layers
                         .get(layer_idx)
                         .unwrap();
-                    let inner_layer_commitment = CommitmentTable {
-                        config: ConfigTable::default(),
-                        vector_commitment:
-                            crate::swiftness::commitment::vector::types::Commitment {
-                                config:
-                                    crate::swiftness::commitment::vector::config::Config::default(),
-                                commitment_hash: *inner_layer,
-                            },
-                    };
-                    stark_commitment
-                        .fri
-                        .inner_layers
-                        .push(inner_layer_commitment);
+
+                    // Instead of pushing, assign to existing element
+                    let target_layer = &mut stark_commitment.fri.inner_layers.at_mut(layer_idx);
+                    target_layer.vector_commitment.commitment_hash = *inner_layer;
 
                     let proof: &StarkProof = stack.get_proof_reference();
                     stack
@@ -178,9 +167,10 @@ impl Executable for FriCommit {
                 let stark_commitment =
                     stack.get_stark_commitment_mut::<StarkCommitment<InteractionElements>>();
 
-                //this might overflow solana stack because to_vec() creates a new vector
-                stark_commitment.fri.last_layer_coefficients =
-                    last_layer_coefficients.as_slice().to_vec();
+                stark_commitment
+                    .fri
+                    .last_layer_coefficients
+                    .extend_from_slice(last_layer_coefficients.as_slice());
 
                 TranscriptReadFeltVector::push_input(
                     self.current_transcript_digest,
